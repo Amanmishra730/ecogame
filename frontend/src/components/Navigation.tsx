@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useAuth } from "../contexts/AuthContext";
 import { 
   Home, 
   Brain, 
@@ -8,7 +9,8 @@ import {
   Trophy, 
   User,
   Leaf,
-  Award
+  Award,
+  LogOut
 } from "lucide-react";
 
 interface NavigationProps {
@@ -22,6 +24,8 @@ interface NavigationProps {
 }
 
 export const Navigation = ({ currentView, onViewChange, userStats }: NavigationProps) => {
+  const { logout, currentUser } = useAuth();
+  
   const navItems = [
     { id: "dashboard", label: "Dashboard", icon: Home },
     { id: "quiz", label: "Quiz", icon: Brain },
@@ -30,16 +34,37 @@ export const Navigation = ({ currentView, onViewChange, userStats }: NavigationP
     { id: "profile", label: "Profile", icon: User },
   ];
 
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      console.error("Failed to logout:", error);
+    }
+  };
+
   return (
     <Card className="w-full lg:w-64 lg:h-fit p-4 bg-gradient-eco border-0 text-primary-foreground shadow-eco">
       <div className="flex items-center gap-3 mb-6">
         <div className="p-2 bg-white/20 rounded-lg">
           <Leaf className="h-6 w-6" />
         </div>
-        <div>
+        <div className="flex-1">
           <h1 className="font-bold text-lg">EcoLearn</h1>
           <p className="text-sm opacity-90">Level {userStats.level}</p>
+          {currentUser && (
+            <p className="text-xs opacity-75">
+              {currentUser.displayName || currentUser.email || 'User'}
+            </p>
+          )}
         </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleLogout}
+          className="text-white hover:bg-white/10 p-2"
+        >
+          <LogOut className="h-4 w-4" />
+        </Button>
       </div>
 
       <div className="mb-6 p-3 bg-white/10 rounded-lg">
