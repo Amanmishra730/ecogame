@@ -7,11 +7,15 @@ import {
   ArrowLeft,
   Trophy,
   Target,
-  Gamepad2
+  Gamepad2,
+  Heart,
+  TreePine,
+  Clock,
+  Zap
 } from "lucide-react";
 
 interface GameSelectorProps {
-  onSelectGame: (gameType: 'waste-sorting' | 'water-simulator') => void;
+  onSelectGame: (gameType: 'waste-sorting' | 'water-simulator' | 'save-animals' | 'tree-hero' | 'climate-time-traveler' | 'forest-match') => void;
   onBack: () => void;
 }
 
@@ -37,6 +41,50 @@ const games = [
     xp: '15-50 XP',
     time: '8 mins',
     players: '856'
+  },
+  {
+    id: 'save-animals',
+    name: 'Save the Animals',
+    description: 'Drag and drop animals to their correct habitats and learn about biodiversity',
+    icon: Heart,
+    color: 'bg-red-500',
+    difficulty: 'Medium',
+    xp: '20-80 XP',
+    time: '10 mins',
+    players: '1.5k'
+  },
+  {
+    id: 'tree-hero',
+    name: 'Tree Hero',
+    description: 'Plant and grow trees by answering quiz questions about environmental science',
+    icon: TreePine,
+    color: 'bg-green-500',
+    difficulty: 'Easy',
+    xp: '10-100 XP',
+    time: '8 mins',
+    players: '2.1k'
+  },
+  {
+    id: 'climate-time-traveler',
+    name: 'Climate Time Traveler',
+    description: 'Travel through time and make choices that shape the environment across different eras',
+    icon: Clock,
+    color: 'bg-purple-500',
+    difficulty: 'Medium',
+    xp: '20-120 XP',
+    time: '12 mins',
+    players: '1.8k'
+  },
+  {
+    id: 'forest-match',
+    name: 'Forest Match',
+    description: 'Match natural elements to restore the damaged forest with special combinations',
+    icon: Zap,
+    color: 'bg-green-600',
+    difficulty: 'Easy',
+    xp: '15-200 XP',
+    time: '10 mins',
+    players: '2.3k'
   }
 ];
 
@@ -79,7 +127,14 @@ export const GameSelector = ({ onSelectGame, onBack }: GameSelectorProps) => {
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className={`p-3 rounded-lg ${game.color}/10 group-hover:${game.color}/20 transition-colors`}>
-                    <Icon className={`h-8 w-8 ${game.id === 'waste-sorting' ? 'text-eco-bright' : 'text-blue-500'}`} />
+                    <Icon className={`h-8 w-8 ${
+                      game.id === 'waste-sorting' ? 'text-eco-bright' : 
+                      game.id === 'water-simulator' ? 'text-blue-500' : 
+                      game.id === 'save-animals' ? 'text-red-500' :
+                      game.id === 'tree-hero' ? 'text-green-500' :
+                      game.id === 'climate-time-traveler' ? 'text-purple-500' :
+                      'text-green-600'
+                    }`} />
                   </div>
                   <div className="text-right">
                     <Badge variant="outline" className="mb-2">
@@ -117,7 +172,7 @@ export const GameSelector = ({ onSelectGame, onBack }: GameSelectorProps) => {
                   <Button 
                     className="w-full" 
                     size="lg"
-                    onClick={() => onSelectGame(game.id as 'waste-sorting' | 'water-simulator')}
+                    onClick={() => onSelectGame(game.id as 'waste-sorting' | 'water-simulator' | 'save-animals' | 'tree-hero' | 'climate-time-traveler' | 'forest-match')}
                   >
                     Play Now
                   </Button>
@@ -132,11 +187,35 @@ export const GameSelector = ({ onSelectGame, onBack }: GameSelectorProps) => {
                           <li>• Recycling best practices</li>
                           <li>• Environmental impact awareness</li>
                         </>
-                      ) : (
+                      ) : game.id === 'water-simulator' ? (
                         <>
                           <li>• Daily water consumption habits</li>
                           <li>• Conservation techniques</li>
                           <li>• Environmental impact of choices</li>
+                        </>
+                      ) : game.id === 'save-animals' ? (
+                        <>
+                          <li>• Animal habitats and biodiversity</li>
+                          <li>• Endangered species awareness</li>
+                          <li>• Ecosystem conservation</li>
+                        </>
+                      ) : game.id === 'tree-hero' ? (
+                        <>
+                          <li>• Photosynthesis and tree science</li>
+                          <li>• Deforestation awareness</li>
+                          <li>• Environmental conservation</li>
+                        </>
+                      ) : game.id === 'climate-time-traveler' ? (
+                        <>
+                          <li>• Climate change through history</li>
+                          <li>• Environmental decision-making</li>
+                          <li>• Sustainable future planning</li>
+                        </>
+                      ) : (
+                        <>
+                          <li>• Natural element interactions</li>
+                          <li>• Forest restoration and biodiversity</li>
+                          <li>• Environmental puzzle solving</li>
                         </>
                       )}
                     </ul>

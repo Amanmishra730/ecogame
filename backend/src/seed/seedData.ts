@@ -99,6 +99,72 @@ export const seedQuizzes = async (): Promise<void> => {
         ],
         totalPoints: 30,
         timeLimit: 7
+      },
+      {
+        title: "Biodiversity & Animal Habitats",
+        description: "Learn about animal habitats, endangered species, and biodiversity conservation",
+        category: "biodiversity",
+        difficulty: "medium",
+        questions: [
+          {
+            question: "Which habitat is home to the Bengal Tiger?",
+            options: [
+              "Desert",
+              "Forest",
+              "Ocean",
+              "Arctic"
+            ],
+            correctAnswer: 1,
+            explanation: "Bengal Tigers live in forest habitats, particularly in India and Bangladesh.",
+            category: "biodiversity",
+            difficulty: "medium",
+            points: 15
+          },
+          {
+            question: "What is the primary threat to polar bears?",
+            options: [
+              "Poaching",
+              "Climate change",
+              "Deforestation",
+              "Pollution"
+            ],
+            correctAnswer: 1,
+            explanation: "Climate change is melting Arctic ice, which is the primary habitat for polar bears.",
+            category: "biodiversity",
+            difficulty: "medium",
+            points: 15
+          },
+          {
+            question: "Which animal is NOT endangered?",
+            options: [
+              "Giant Panda",
+              "Blue Whale",
+              "Fennec Fox",
+              "Sea Turtle"
+            ],
+            correctAnswer: 2,
+            explanation: "The Fennec Fox is not currently endangered, while the others are on the endangered species list.",
+            category: "biodiversity",
+            difficulty: "easy",
+            points: 10
+          },
+          {
+            question: "What percentage of marine species are threatened by plastic pollution?",
+            options: [
+              "25%",
+              "50%",
+              "75%",
+              "90%"
+            ],
+            correctAnswer: 2,
+            explanation: "Approximately 75% of marine species are affected by plastic pollution in some way.",
+            category: "biodiversity",
+            difficulty: "hard",
+            points: 20
+          }
+        ],
+        totalPoints: 60,
+        timeLimit: 10
       }
     ];
 
