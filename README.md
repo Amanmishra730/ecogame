@@ -18,4 +18,4 @@ A modern web application built with **React**, **TypeScript**, **Vite**, **Tailw
 
 ### 1️⃣ Clone the repository
 ```sh
-git clone <YOUR_GIT_URL>
+git clone <(https://github.com/Amanmishra730/ecogame.git)>
