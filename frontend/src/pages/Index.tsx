@@ -5,6 +5,10 @@ import { QuizInterface } from "@/components/QuizInterface";
 import { GameSelector } from "@/components/GameSelector";
 import { WasteSortingGame } from "../components/WasteSortingGame";
 import { WaterSimulator } from "@/components/WaterSimulator";
+import SaveTheAnimalsGame from "@/components/SaveTheAnimalsGame";
+import TreeHeroGame from "@/components/TreeHeroGame";
+import ClimateTimeTravelerGame from "@/components/ClimateTimeTravelerGame";
+import ForestMatchGame from "@/components/ForestMatchGame";
 import { Leaderboard } from "@/components/Leaderboard";
 import { Profile } from "@/components/Profile";
 import { GamingBackground } from "@/components/GamingBackground";
@@ -61,6 +65,14 @@ const Index = () => {
         return <WasteSortingGame onComplete={handleGameComplete} />;
       case "water-simulator":
         return <WaterSimulator onComplete={handleGameComplete} />;
+      case "save-animals":
+        return <SaveTheAnimalsGame onComplete={handleGameComplete} />;
+      case "tree-hero":
+        return <TreeHeroGame onComplete={handleGameComplete} />;
+      case "climate-time-traveler":
+        return <ClimateTimeTravelerGame onComplete={handleGameComplete} />;
+      case "forest-match":
+        return <ForestMatchGame onComplete={handleGameComplete} />;
       case "leaderboard":
         return <Leaderboard />;
       case "profile":
