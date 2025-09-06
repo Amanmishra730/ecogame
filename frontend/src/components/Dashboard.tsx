@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { DataRecoveryButton } from "@/components/DataRecoveryButton";
 import { 
   Trophy, 
   Target, 
@@ -144,6 +145,9 @@ export const Dashboard = ({ onStartQuiz, onStartGame, userStats }: DashboardProp
           </div>
         </CardContent>
       </Card>
+
+      {/* Data Recovery */}
+      <DataRecoveryButton />
     </div>
   );
 };

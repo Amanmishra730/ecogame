@@ -154,7 +154,10 @@ export const WaterSimulator = ({ onComplete }: WaterSimulatorProps) => {
                 <RotateCcw className="mr-2 h-4 w-4" />
                 Try Different Choices
               </Button>
-              <Button onClick={() => onComplete(xpEarned)}>
+              <Button 
+                onClick={() => onComplete(xpEarned)}
+                className="bg-green-600 hover:bg-green-700"
+              >
                 <Trophy className="mr-2 h-4 w-4" />
                 Continue
               </Button>

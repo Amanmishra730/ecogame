@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Navigation } from "@/components/Navigation";
 import { Dashboard } from "@/components/Dashboard";
 import { QuizInterface } from "@/components/QuizInterface";
@@ -13,44 +13,69 @@ import ForestMatchGame from "@/components/ForestMatchGame";
 import { Leaderboard } from "@/components/Leaderboard";
 import { Profile } from "@/components/Profile";
 import { GamingBackground } from "@/components/GamingBackground";
+import { useUserProgress } from "@/contexts/UserProgressContext";
 import { toast } from "sonner";
 
 const Index = () => {
   const [currentView, setCurrentView] = useState("dashboard");
   const [selectedQuizCategory, setSelectedQuizCategory] = useState<string>("general");
-  const [userStats, setUserStats] = useState({
-    xp: 1890,
-    level: 18,
-    badges: 4,
-    completedQuizzes: 12,
-    gamesPlayed: 8,
-    streak: 3,
-  });
+  const { userProgress, completeQuiz, completeGame, updateStreak, loading: progressLoading } = useUserProgress();
 
-  const handleQuizComplete = (score: number) => {
+  // Convert userProgress to userStats format for compatibility
+  const userStats = userProgress ? {
+    xp: userProgress.xp,
+    level: userProgress.level,
+    badges: userProgress.badges,
+    completedQuizzes: userProgress.completedQuizzes,
+    gamesPlayed: userProgress.gamesPlayed,
+    streak: userProgress.streak,
+  } : {
+    xp: 0,
+    level: 1,
+    badges: 0,
+    completedQuizzes: 0,
+    gamesPlayed: 0,
+    streak: 0,
+  };
+
+  const handleQuizComplete = async (score: number) => {
     const xpGained = score * 20;
-    setUserStats(prev => ({
-      ...prev,
-      xp: prev.xp + xpGained,
-      completedQuizzes: prev.completedQuizzes + 1,
-      level: Math.floor((prev.xp + xpGained) / 100) + 1,
-    }));
     
+    // Update UI immediately for better responsiveness
     toast.success(`Quiz completed! +${xpGained} XP earned!`);
     setCurrentView("dashboard");
+    
+    // Handle async operations in the background
+    try {
+      await completeQuiz(score);
+    } catch (error) {
+      console.error('Error completing quiz:', error);
+      // Show error toast but don't block the UI
+      toast.error('Failed to save quiz progress');
+    }
   };
 
-  const handleGameComplete = (score: number) => {
-    setUserStats(prev => ({
-      ...prev,
-      xp: prev.xp + score,
-      gamesPlayed: prev.gamesPlayed + 1,
-      level: Math.floor((prev.xp + score) / 100) + 1,
-    }));
-    
+  const handleGameComplete = async (score: number) => {
+    // Update UI immediately for better responsiveness
     toast.success(`Game completed! +${score} XP earned!`);
     setCurrentView("games");
+    
+    // Handle async operations in the background
+    try {
+      await completeGame(score);
+    } catch (error) {
+      console.error('Error completing game:', error);
+      // Show error toast but don't block the UI
+      toast.error('Failed to save game progress');
+    }
   };
+
+  // Update streak when component mounts
+  React.useEffect(() => {
+    if (userProgress) {
+      updateStreak();
+    }
+  }, [userProgress, updateStreak]);
 
   const renderCurrentView = () => {
     switch (currentView) {
@@ -108,6 +133,18 @@ const Index = () => {
       setCurrentView(view);
     }
   };
+
+  // Show loading state while user progress is being loaded
+  if (progressLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-eco-light/40 to-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-600 mx-auto mb-4"></div>
+          <p className="text-lg text-gray-600">Loading your progress...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-eco-light/40 to-white relative">
