@@ -83,7 +83,8 @@ export const Navigation = ({ currentView, onViewChange, userStats }: NavigationP
       <nav className="space-y-2">
         {navItems.map((item) => {
           const Icon = item.icon;
-          const isActive = currentView === item.id;
+          // For quiz, also highlight when in quiz-categories view
+          const isActive = currentView === item.id || (item.id === "quiz" && currentView === "quiz-categories");
           
           return (
             <Button
