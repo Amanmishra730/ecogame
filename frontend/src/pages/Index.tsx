@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Navigation } from "@/components/Navigation";
 import { Dashboard } from "@/components/Dashboard";
 import { QuizInterface } from "@/components/QuizInterface";
+import { QuizCategorySelector } from "@/components/QuizCategorySelector";
 import { GameSelector } from "@/components/GameSelector";
 import { WasteSortingGame } from "../components/WasteSortingGame";
 import { WaterSimulator } from "@/components/WaterSimulator";
@@ -16,6 +17,7 @@ import { toast } from "sonner";
 
 const Index = () => {
   const [currentView, setCurrentView] = useState("dashboard");
+  const [selectedQuizCategory, setSelectedQuizCategory] = useState<string>("general");
   const [userStats, setUserStats] = useState({
     xp: 1890,
     level: 18,
@@ -52,8 +54,18 @@ const Index = () => {
 
   const renderCurrentView = () => {
     switch (currentView) {
+      case "quiz-categories":
+        return (
+          <QuizCategorySelector 
+            onSelectCategory={(category) => {
+              setSelectedQuizCategory(category);
+              setCurrentView("quiz");
+            }}
+            onBack={() => setCurrentView("dashboard")}
+          />
+        );
       case "quiz":
-        return <QuizInterface onComplete={handleQuizComplete} />;
+        return <QuizInterface onComplete={handleQuizComplete} category={selectedQuizCategory} />;
       case "games":
         return (
           <GameSelector 
@@ -80,11 +92,20 @@ const Index = () => {
       default:
         return (
           <Dashboard
-            onStartQuiz={() => setCurrentView("quiz")}
+            onStartQuiz={() => setCurrentView("quiz-categories")}
             onStartGame={() => setCurrentView("games")}
             userStats={userStats}
           />
         );
+    }
+  };
+
+  const handleViewChange = (view: string) => {
+    if (view === "quiz") {
+      // When clicking Quiz in navigation, show category selector first
+      setCurrentView("quiz-categories");
+    } else {
+      setCurrentView(view);
     }
   };
 
@@ -95,11 +116,11 @@ const Index = () => {
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Navigation Sidebar */}
           <div className="lg:sticky lg:top-4 lg:h-fit">
-            <Navigation 
-              currentView={currentView}
-              onViewChange={setCurrentView}
-              userStats={userStats}
-            />
+        <Navigation 
+          currentView={currentView} 
+          onViewChange={handleViewChange}
+          userStats={userStats}
+        />
           </div>
           
           {/* Main Content */}
