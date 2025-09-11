@@ -8,6 +8,7 @@ export interface IQuizQuestion {
   category: string;
   difficulty: 'easy' | 'medium' | 'hard';
   points: number;
+  approved?: boolean;
 }
 
 export interface IQuiz extends Document {
@@ -60,6 +61,10 @@ const QuizQuestionSchema = new Schema<IQuizQuestion>({
     required: true,
     min: 1,
     max: 100
+  },
+  approved: {
+    type: Boolean,
+    default: false
   }
 });
 

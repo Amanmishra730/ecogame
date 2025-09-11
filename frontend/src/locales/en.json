@@ -1,0 +1,24 @@
+{
+  "app": {
+    "name": "EcoLearn"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "quiz": "Quiz",
+    "games": "Games",
+    "leaderboard": "Leaderboard",
+    "profile": "Profile",
+    "level": "Level",
+    "logout": "Logout",
+    "xp": "XP"
+  },
+  "loading": {
+    "progress": "Loading your progress..."
+  },
+  "toast": {
+    "quizCompleted": "Quiz completed! +{{xp}} XP earned!",
+    "gameCompleted": "Game completed! +{{xp}} XP earned!"
+  }
+}
+
+

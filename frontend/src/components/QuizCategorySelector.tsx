@@ -11,6 +11,9 @@ import {
   ArrowLeft,
   Brain
 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { db } from "@/lib/firebase";
+import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 
 const quizCategories = [
   {
@@ -69,6 +72,21 @@ interface QuizCategorySelectorProps {
 }
 
 export const QuizCategorySelector = ({ onSelectCategory, onBack }: QuizCategorySelectorProps) => {
+  const [customQuizzes, setCustomQuizzes] = useState<any[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'quizzes'), orderBy('title'), limit(30)));
+        const items = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+        setCustomQuizzes(items);
+      } catch (e) {
+        // fail silently in UI, keep defaults
+        console.warn('Failed to load custom quizzes', e);
+      }
+    })();
+  }, []);
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -129,6 +147,31 @@ export const QuizCategorySelector = ({ onSelectCategory, onBack }: QuizCategoryS
           );
         })}
       </div>
+
+      {customQuizzes.length > 0 && (
+        <Card className="bg-white/60">
+          <CardHeader>
+            <CardTitle className="text-xl">Your Quizzes</CardTitle>
+            <CardDescription>Quizzes created in your Firebase project</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {customQuizzes.map(q => (
+                <Card key={q.id} className="hover:shadow-lg transition-all bg-white/60">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-lg">{q.title}</CardTitle>
+                    <CardDescription className="text-xs">{q.category} • {q.difficulty}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <CardDescription className="text-sm line-clamp-3">{q.description}</CardDescription>
+                    <Button className="w-full mt-3" onClick={() => onSelectCategory(`firestore:${q.id}`)}>Start Quiz</Button>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Stats */}
       <Card className="bg-white/60">

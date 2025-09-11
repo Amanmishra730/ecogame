@@ -18,10 +18,18 @@ export class DataRecoveryService {
         const parsedProgress = JSON.parse(localProgress);
         console.log('✅ Recovered progress from localStorage:', parsedProgress);
         
-        // Save to Firebase to restore it
+        // Save to Firebase to restore it (upsert)
         try {
-          await UserProgressService.updateUserProgress(userId, parsedProgress);
-          console.log('✅ Progress restored to Firebase');
+          const existing = await UserProgressService.getUserProgress(userId);
+          const { userId: _uid, createdAt: _created, ...updates } = parsedProgress as UserProgress;
+          if (!existing) {
+            await UserProgressService.createUserProgress(userId, parsedProgress.displayName);
+            await UserProgressService.updateUserProgress(userId, updates);
+            console.log('✅ Progress created and restored to Firebase');
+          } else {
+            await UserProgressService.updateUserProgress(userId, updates);
+            console.log('✅ Progress restored to Firebase');
+          }
         } catch (error) {
           console.warn('⚠️ Could not restore to Firebase, but local data is available');
         }
@@ -49,7 +57,14 @@ export class DataRecoveryService {
 
   static async syncProgressToFirebase(userId: string, progress: UserProgress): Promise<void> {
     try {
-      await UserProgressService.updateUserProgress(userId, progress);
+      const existing = await UserProgressService.getUserProgress(userId);
+      const { userId: _uid, createdAt: _created, ...updates } = progress;
+      if (!existing) {
+        await UserProgressService.createUserProgress(userId, progress.displayName);
+        await UserProgressService.updateUserProgress(userId, updates);
+      } else {
+        await UserProgressService.updateUserProgress(userId, updates);
+      }
       console.log('🔄 Progress synced to Firebase');
     } catch (error) {
       console.error('❌ Error syncing to Firebase:', error);
