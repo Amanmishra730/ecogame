@@ -15,9 +15,11 @@ import { Profile } from "@/components/Profile";
 import { GamingBackground } from "@/components/GamingBackground";
 import { useUserProgress } from "@/contexts/UserProgressContext";
 import { toast } from "sonner";
+import { WelcomeBurst } from "@/components/WelcomeBurst";
 
 const Index = () => {
   const [currentView, setCurrentView] = useState("dashboard");
+  const [showWelcome, setShowWelcome] = useState<string | null>(null);
   const [selectedQuizCategory, setSelectedQuizCategory] = useState<string>("general");
   const { userProgress, completeQuiz, completeGame, updateStreak, loading: progressLoading } = useUserProgress();
 
@@ -85,6 +87,7 @@ const Index = () => {
             onSelectCategory={(category) => {
               setSelectedQuizCategory(category);
               setCurrentView("quiz");
+              setShowWelcome("Welcome to the Quiz!");
             }}
             onBack={() => setCurrentView("dashboard")}
           />
@@ -94,7 +97,10 @@ const Index = () => {
       case "games":
         return (
           <GameSelector 
-            onSelectGame={(gameType) => setCurrentView(gameType)}
+            onSelectGame={(gameType) => {
+              setCurrentView(gameType);
+              setShowWelcome("Welcome to the Game!");
+            }}
             onBack={() => setCurrentView("dashboard")}
           />
         );
@@ -149,6 +155,9 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-eco-light/40 to-white relative">
       <GamingBackground />
+      {showWelcome && (
+        <WelcomeBurst message={showWelcome} onDone={() => setShowWelcome(null)} />
+      )}
       <div className="container mx-auto p-4 relative z-20">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Navigation Sidebar */}

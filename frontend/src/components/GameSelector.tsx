@@ -89,6 +89,9 @@ const games = [
 ];
 
 export const GameSelector = ({ onSelectGame, onBack }: GameSelectorProps) => {
+  const difficultyOrder: Record<string, number> = { 'Easy': 1, 'Medium': 2, 'Hard': 3 };
+  const roadmap = [...games].sort((a, b) => (difficultyOrder[a.difficulty] || 99) - (difficultyOrder[b.difficulty] || 99));
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
@@ -115,6 +118,45 @@ export const GameSelector = ({ onSelectGame, onBack }: GameSelectorProps) => {
             </div>
           </div>
         </CardHeader>
+      </Card>
+
+      {/* Roadmap: Easy → Hard */}
+      <Card className="bg-white/70">
+        <CardHeader>
+          <CardTitle className="text-lg">Roadmap: Start Easy → Advance to Hard</CardTitle>
+          <CardDescription>Follow this path to progress from beginner-friendly games to more challenging ones.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="relative overflow-x-auto py-4">
+            <div className="flex items-center gap-6 min-w-max">
+              {roadmap.map((g, idx) => {
+                const Icon = g.icon;
+                const isLast = idx === roadmap.length - 1;
+                const color = g.difficulty === 'Easy' ? 'bg-emerald-500' : g.difficulty === 'Medium' ? 'bg-amber-500' : 'bg-rose-500';
+                const ring = g.difficulty === 'Easy' ? 'ring-emerald-300' : g.difficulty === 'Medium' ? 'ring-amber-300' : 'ring-rose-300';
+                return (
+                  <div key={g.id} className="flex items-center gap-6">
+                    <button
+                      onClick={() => onSelectGame(g.id as any)}
+                      className={`pointer-events-auto group rounded-2xl px-4 py-3 shadow-sm ring-2 ${ring} bg-white hover:shadow-md transition-all text-left`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className={`h-9 w-9 ${color} text-white rounded-lg inline-flex items-center justify-center`}>
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <div>
+                          <div className="font-semibold leading-none">{g.name}</div>
+                          <div className="text-xs text-muted-foreground">{g.difficulty}</div>
+                        </div>
+                      </div>
+                    </button>
+                    {!isLast && <div className="w-10 h-0.5 bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-400" />}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </CardContent>
       </Card>
 
       {/* Game Grid */}

@@ -3,12 +3,13 @@ import Quiz from '../models/Quiz';
 import QuizAttempt from '../models/QuizAttempt';
 import User from '../models/User';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { Parser } from 'json2csv';
 
 export const getQuizzes = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { category, difficulty, limit = 10, offset = 0 } = req.query;
+    const { category, difficulty, limit = 10, offset = 0, includeInactive } = req.query;
     
-    const filter: any = { isActive: true };
+    const filter: any = { isActive: includeInactive ? { $in: [true, false] } : true };
     if (category) filter.category = category;
     if (difficulty) filter.difficulty = difficulty;
 
@@ -46,6 +47,83 @@ export const getQuizById = async (req: Request, res: Response): Promise<void> =>
   } catch (error) {
     console.error('Get quiz by ID error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const createQuiz = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const body = req.body;
+    const quiz = await Quiz.create(body);
+    res.status(201).json({ success: true, data: quiz });
+  } catch (error) {
+    console.error('Create quiz error:', error);
+    res.status(400).json({ error: 'Invalid quiz payload' });
+  }
+};
+
+export const updateQuiz = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { id } = req.params;
+    const body = req.body;
+    const quiz = await Quiz.findByIdAndUpdate(id, body, { new: true });
+    if (!quiz) {
+      res.status(404).json({ error: 'Quiz not found' });
+      return;
+    }
+    res.json({ success: true, data: quiz });
+  } catch (error) {
+    console.error('Update quiz error:', error);
+    res.status(400).json({ error: 'Invalid update payload' });
+  }
+};
+
+export const approveQuestion = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const { quizId, questionIndex, approved } = req.body as { quizId: string; questionIndex: number; approved: boolean };
+    const quiz = await Quiz.findById(quizId);
+    if (!quiz) {
+      res.status(404).json({ error: 'Quiz not found' });
+      return;
+    }
+    if (!quiz.questions[questionIndex]) {
+      res.status(400).json({ error: 'Question index out of range' });
+      return;
+    }
+    (quiz.questions[questionIndex] as any).approved = approved;
+    await quiz.save();
+    res.json({ success: true, data: quiz.questions[questionIndex] });
+  } catch (error) {
+    console.error('Approve question error:', error);
+    res.status(400).json({ error: 'Invalid request' });
+  }
+};
+
+export const exportQuizzesCsv = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const quizzes = await Quiz.find({});
+    const rows = quizzes.flatMap(q => q.questions.map((question, idx) => ({
+      quizId: q._id.toString(),
+      title: q.title,
+      category: q.category,
+      difficulty: q.difficulty,
+      questionIndex: idx,
+      question: question.question,
+      optionA: question.options[0],
+      optionB: question.options[1],
+      optionC: question.options[2],
+      optionD: question.options[3],
+      correctAnswer: question.correctAnswer,
+      points: question.points,
+      approved: (question as any).approved ?? false
+    })));
+    const parser = new Parser();
+    const csv = parser.parse(rows);
+    res.header('Content-Type', 'text/csv');
+    res.attachment('quizzes.csv');
+    res.send(csv);
+  } catch (error) {
+    console.error('Export CSV error:', error);
+    res.status(500).json({ error: 'Failed to export CSV' });
   }
 };
 

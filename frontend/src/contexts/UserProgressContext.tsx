@@ -199,7 +199,11 @@ export const UserProgressProvider: React.FC<UserProgressProviderProps> = ({ chil
       
       let newStreak = userProgress.streak;
       
-      if (lastActive !== today) {
+      if (lastActive === today) {
+        if (newStreak === 0) {
+          newStreak = 1;
+        }
+      } else if (lastActive !== today) {
         if (lastActive === new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]) {
           newStreak += 1;
         } else {

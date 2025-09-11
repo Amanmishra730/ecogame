@@ -6,7 +6,6 @@ import { Trophy, Medal, Award, TrendingUp, Loader2 } from "lucide-react";
 import { LeaderboardService, LeaderboardEntry, LeaderboardStats } from "@/lib/leaderboardService";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserProgress } from "@/contexts/UserProgressContext";
-import { SeedDataButton } from "@/components/SeedDataButton";
 
 export const Leaderboard = () => {
   const { currentUser } = useAuth();
@@ -295,9 +294,6 @@ export const Leaderboard = () => {
         </Card>
       )}
 
-      {/* Development Tools */}
-      <SeedDataButton />
-      
       {/* Debug Info */}
       {import.meta.env.DEV && (
         <Card className="bg-blue-50 border-blue-200">

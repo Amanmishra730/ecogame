@@ -185,7 +185,14 @@ export class UserProgressService {
       let newStreak = currentProgress.streak;
       
       if (lastActive === today) {
-        // Already updated today, no change needed
+        // If already marked today but streak is 0 (first login), set to 1
+        if (newStreak === 0) {
+          newStreak = 1;
+          await this.updateUserProgress(userId, {
+            streak: newStreak,
+            lastActiveDate: today
+          });
+        }
         return;
       } else if (lastActive === new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0]) {
         // Consecutive day, increment streak
