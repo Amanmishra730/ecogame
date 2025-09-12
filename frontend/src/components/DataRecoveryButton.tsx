@@ -56,10 +56,11 @@ export const DataRecoveryButton = () => {
     }
   };
 
-  // Only show if user has low progress (might indicate data loss)
-  if (!userProgress || userProgress.xp > 100) {
-    return null;
-  }
+  // Only show if there is a higher local backup than current (potential data loss)
+  if (!userProgress) return null;
+  const localBackup = DataRecoveryService.getLocalBackup(currentUser?.uid || '');
+  const shouldShow = localBackup && DataRecoveryService.hasPotentialLoss(userProgress, localBackup);
+  if (!shouldShow) return null;
 
   return (
     <Card className="bg-orange-50 border-orange-200">
@@ -75,6 +76,9 @@ export const DataRecoveryButton = () => {
       <CardContent className="space-y-3">
         <div className="text-sm text-orange-700">
           Current XP: {userProgress.xp} | Level: {userProgress.level}
+          {localBackup && (
+            <span className="ml-2 opacity-80">(Backup XP: {localBackup.xp}, Level: {localBackup.level})</span>
+          )}
         </div>
         <div className="flex gap-2">
           <Button

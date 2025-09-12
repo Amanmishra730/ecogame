@@ -62,7 +62,7 @@ export const Navigation = ({ currentView, onViewChange, userStats }: NavigationP
         <div className="flex items-center gap-2">
           <select
             aria-label="Language"
-            className="bg-white/10 text-white text-xs rounded px-2 py-1 outline-none"
+            className="text-xs rounded px-2 py-1 outline-none border border-white/30 bg-white text-primary shadow-sm hover:bg-white/90 focus:ring-2 focus:ring-accent/60"
             value={locale}
             onChange={(e) => setLocale(e.target.value as any)}
           >
