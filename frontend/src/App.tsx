@@ -10,6 +10,10 @@ import LoginForm from "./components/LoginForm";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Admin from "./pages/Admin";
+import PWAInstallPrompt from "./components/PWAInstallPrompt";
+import { pwaService } from "./lib/pwaService";
+import { offlineStorageService } from "./lib/offlineStorageService";
+import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
@@ -31,40 +35,65 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <I18nProvider>
-        <AuthProvider>
-          <UserProgressProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route 
-                  path="/" 
-                  element={
-                    <ProtectedRoute>
-                      <Index />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route 
-                  path="/admin" 
-                  element={
-                    <ProtectedRoute>
-                      <Admin />
-                    </ProtectedRoute>
-                  } 
-                />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </BrowserRouter>
-          </UserProgressProvider>
-        </AuthProvider>
-      </I18nProvider>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  useEffect(() => {
+    // Initialize PWA services
+    const initializePWA = async () => {
+      try {
+        // Register service worker
+        await pwaService.registerServiceWorker();
+        
+        // Initialize offline storage
+        await offlineStorageService.initialize();
+        
+        // Clear expired cache
+        await offlineStorageService.clearExpiredCache();
+        
+        console.log('PWA services initialized successfully');
+      } catch (error) {
+        console.error('Error initializing PWA services:', error);
+      }
+    };
+
+    initializePWA();
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <UserProgressProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Routes>
+                  <Route 
+                    path="/" 
+                    element={
+                      <ProtectedRoute>
+                        <Index />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route 
+                    path="/admin" 
+                    element={
+                      <ProtectedRoute>
+                        <Admin />
+                      </ProtectedRoute>
+                    } 
+                  />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+                <PWAInstallPrompt />
+              </BrowserRouter>
+            </UserProgressProvider>
+          </AuthProvider>
+        </I18nProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
