@@ -1,6 +1,26 @@
 import { UserProgressService, UserProgress } from './userProgressService';
 
 export class DataRecoveryService {
+  static getLocalBackup(userId: string): UserProgress | null {
+    try {
+      const local = localStorage.getItem(`userProgress_${userId}`);
+      return local ? (JSON.parse(local) as UserProgress) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  static hasPotentialLoss(current: UserProgress, backup: UserProgress): boolean {
+    // Show recovery only if backup has strictly higher meaningful stats
+    if (!backup) return false;
+    return (
+      (backup.xp ?? 0) > (current.xp ?? 0) ||
+      (backup.completedQuizzes ?? 0) > (current.completedQuizzes ?? 0) ||
+      (backup.gamesPlayed ?? 0) > (current.gamesPlayed ?? 0) ||
+      (backup.level ?? 1) > (current.level ?? 1)
+    );
+  }
+
   static async recoverUserProgress(userId: string): Promise<UserProgress | null> {
     try {
       console.log('🔍 Attempting to recover user progress for:', userId);
@@ -13,9 +33,9 @@ export class DataRecoveryService {
       }
       
       // Try to get progress from localStorage
-      const localProgress = localStorage.getItem(`userProgress_${userId}`);
+      const localProgress = this.getLocalBackup(userId);
       if (localProgress) {
-        const parsedProgress = JSON.parse(localProgress);
+        const parsedProgress = localProgress;
         console.log('✅ Recovered progress from localStorage:', parsedProgress);
         
         // Save to Firebase to restore it (upsert)
