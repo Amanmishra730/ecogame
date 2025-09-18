@@ -276,3 +276,13 @@ export const QRScanner: React.FC<QRScannerProps> = ({
 };
 
 export default QRScanner;
+
+
+
+
+
+
+
+
+
+

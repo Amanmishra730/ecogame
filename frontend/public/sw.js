@@ -1,16 +1,13 @@
-const CACHE_NAME = 'ecolearn-v1';
-const STATIC_CACHE = 'ecolearn-static-v1';
-const DYNAMIC_CACHE = 'ecolearn-dynamic-v1';
+const CACHE_NAME = 'ecolearn-v4';
+const STATIC_CACHE = 'ecolearn-static-v4';
+const DYNAMIC_CACHE = 'ecolearn-dynamic-v4';
 
 // Files to cache for offline functionality
 const STATIC_FILES = [
   '/',
   '/index.html',
-  '/static/js/bundle.js',
-  '/static/css/main.css',
   '/manifest.json',
   '/icon-192.png',
-  '/icon-512.png',
   '/forest-bg.jpg'
 ];
 
@@ -230,3 +227,11 @@ async function removeOfflineData(id) {
     };
   });
 }
+
+
+
+
+
+
+
+

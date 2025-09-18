@@ -270,3 +270,13 @@ class PWAService {
 // Export singleton instance
 export const pwaService = new PWAService();
 export default pwaService;
+
+
+
+
+
+
+
+
+
+

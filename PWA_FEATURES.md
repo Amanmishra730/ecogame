@@ -252,3 +252,13 @@ This document outlines the new Progressive Web App (PWA) features implemented in
 ## 📞 Support
 
 For technical support or feature requests, please refer to the main project documentation or create an issue in the repository.
+
+
+
+
+
+
+
+
+
+

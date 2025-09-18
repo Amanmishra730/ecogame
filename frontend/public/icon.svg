@@ -1,8 +1,18 @@
-<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
-<rect width="192" height="192" rx="24" fill="#22c55e"/>
-<path d="M96 48C108.284 48 118 57.716 118 70V122C118 134.284 108.284 144 96 144C83.716 144 74 134.284 74 122V70C74 57.716 83.716 48 96 48Z" fill="white"/>
-<path d="M88 82H104V98H88V82Z" fill="#22c55e"/>
-<path d="M88 106H104V122H88V106Z" fill="#22c55e"/>
-<circle cx="96" cy="64" r="4" fill="#22c55e"/>
-<path d="M80 130C80 130 84 134 96 134C108 134 112 130 112 130" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="g" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#22c55e"/>
+    </linearGradient>
+  </defs>
+  <rect width="192" height="192" rx="28" fill="url(#g)"/>
+  <g transform="translate(36,36)">
+    <path d="M112 24C86 20 60 30 44 46C20 70 20 102 20 102C20 102 52 102 76 78C92 62 102 36 98 10C98 10 104 18 112 24Z" fill="#ffffff"/>
+    <path d="M28 98C44 82 66 70 88 66" fill="none" stroke="#16a34a" stroke-width="6" stroke-linecap="round"/>
+  </g>
 </svg>
+
+
+
+
+

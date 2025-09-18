@@ -8,8 +8,11 @@ const connectDB = async (): Promise<void> => {
     
     console.log(`MongoDB Connected: ${conn.connection.host}`);
   } catch (error) {
-    console.error('Database connection error:', error);
-    process.exit(1);
+    console.error('Database connection error (continuing without DB):', error);
+    // Do not exit in development so stateless routes (e.g., AI) still work
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
   }
 };
 

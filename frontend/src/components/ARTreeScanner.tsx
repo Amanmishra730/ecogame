@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Camera, TreePine, Leaf, Zap, X, RotateCcw } from 'lucide-react';
+import { detectTree, TreeDetectionResponse } from '@/lib/aiService';
 import { useToast } from '@/hooks/use-toast';
 
 interface TreeFact {
@@ -184,6 +185,7 @@ export const ARTreeScanner: React.FC<ARTreeScannerProps> = ({ onClose }) => {
   const [showTreeSelector, setShowTreeSelector] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const detectionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
@@ -211,7 +213,17 @@ export const ARTreeScanner: React.FC<ARTreeScannerProps> = ({ onClose }) => {
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        // Ensure metadata is loaded before playing and scanning
+        if (videoRef.current.readyState < 2) {
+          await new Promise<void>((resolve) => {
+            const onLoaded = () => {
+              videoRef.current?.removeEventListener('loadedmetadata', onLoaded);
+              resolve();
+            };
+            videoRef.current?.addEventListener('loadedmetadata', onLoaded, { once: true });
+          });
+        }
+        await videoRef.current.play();
       }
 
       // Clear any existing intervals and timeouts
@@ -225,26 +237,28 @@ export const ARTreeScanner: React.FC<ARTreeScannerProps> = ({ onClose }) => {
       // Simulate scanning progress - slower and more realistic
       progressIntervalRef.current = setInterval(() => {
         setScanningProgress(prev => {
-          if (prev >= 100) {
+          const next = Math.min(100, prev + 5);
+          if (next === 100) {
             if (progressIntervalRef.current) {
               clearInterval(progressIntervalRef.current);
               progressIntervalRef.current = null;
             }
-            // Call detection immediately when reaching 100%
-            simulateTreeDetection();
-            
+            // Defer to next tick to ensure state is updated before detection
+            setTimeout(() => {
+              console.debug('Triggering detection at 100%');
+              captureAndDetect();
+            }, 0);
+
             // Add a fallback timeout in case detection fails
+            if (detectionTimeoutRef.current) clearTimeout(detectionTimeoutRef.current);
             detectionTimeoutRef.current = setTimeout(() => {
               if (isScanning && !detectedTree) {
                 console.log('Fallback detection triggered');
-                simulateTreeDetection();
+                captureAndDetect();
               }
             }, 2000);
-            
-            return 100;
           }
-          // Slower progress to encourage proper scanning
-          return prev + 5;
+          return next;
         });
       }, 300);
 
@@ -291,62 +305,97 @@ export const ARTreeScanner: React.FC<ARTreeScannerProps> = ({ onClose }) => {
     setScanningProgress(0);
   };
 
-  const simulateTreeDetection = () => {
-    console.log('simulateTreeDetection called', { isScanning, scanningProgress });
-    
-    // Check if scanning is still active (user hasn't stopped)
-    if (!isScanning) {
-      console.log('Detection cancelled - scanning stopped');
-      return; // Don't detect if user has stopped scanning
+  const captureAndDetect = async () => {
+    if (!videoRef.current) return;
+    // Ensure the video has frames ready
+    if (videoRef.current.readyState < 2) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    if (!canvasRef.current) {
+      // Create an offscreen canvas lazily
+      const canvas = document.createElement('canvas');
+      canvasRef.current = canvas as HTMLCanvasElement;
     }
 
-    // Always check current progress at detection time, not the state value
-    const currentProgress = scanningProgress;
-    console.log('Current progress:', currentProgress);
-    
-    // Simulate detection failure if scanning progress is too low
-    // This makes it more realistic - no tree detected if not scanning properly
-    if (currentProgress < 30) {
+    const video = videoRef.current;
+    const canvas = canvasRef.current!;
+    canvas.width = video.videoWidth || 640;
+    canvas.height = video.videoHeight || 480;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob: Blob | null = await new Promise((resolve) => canvas.toBlob(b => resolve(b), 'image/jpeg', 0.8));
+    if (!blob) return;
+
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+
+    const result: TreeDetectionResponse | null = await detectTree(blob, abortRef.current.signal);
+    if (!result) {
       setIsScanning(false);
       toast({
-        title: "No Tree Detected",
-        description: "Try pointing the camera at a tree or plant and hold steady.",
-        variant: "destructive"
+        title: 'No Tree Detected',
+        description: 'Try better lighting and hold steady on a tree.',
+        variant: 'destructive'
       });
       return;
     }
 
-    // Simulate different detection based on scanning progress
-    let selectedTree;
-    
-    // Add some variety based on scanning progress
-    if (currentProgress > 80) {
-      // Higher chance of rare trees with longer scanning
-      const rareTrees = TREE_DATABASE.filter(tree => tree.rarity === 'rare');
-      const uncommonTrees = TREE_DATABASE.filter(tree => tree.rarity === 'uncommon');
-      const commonTrees = TREE_DATABASE.filter(tree => tree.rarity === 'common');
-      
-      const allTrees = [...rareTrees, ...uncommonTrees, ...commonTrees];
-      selectedTree = allTrees[Math.floor(Math.random() * allTrees.length)];
-    } else if (currentProgress > 50) {
-      // Mix of uncommon and common trees
-      const uncommonTrees = TREE_DATABASE.filter(tree => tree.rarity === 'uncommon');
-      const commonTrees = TREE_DATABASE.filter(tree => tree.rarity === 'common');
-      const mixedTrees = [...uncommonTrees, ...commonTrees];
-      selectedTree = mixedTrees[Math.floor(Math.random() * mixedTrees.length)];
-    } else {
-      // Mostly common trees for quick scans
-      const commonTrees = TREE_DATABASE.filter(tree => tree.rarity === 'common');
-      selectedTree = commonTrees[Math.floor(Math.random() * commonTrees.length)];
+    // Prefer backend-provided tree details if available
+    let matched = result.tree ? TREE_DATABASE.find(t => t.id === result.tree!.id || t.name === result.tree!.name) : undefined;
+    if (!matched) {
+      matched = TREE_DATABASE.find(t => t.name.toLowerCase().includes(result.label.toLowerCase()));
     }
-    
-    setDetectedTree(selectedTree);
+    const looksLikeTree = /\b(tree|plant|leaf|bark|branch|foliage)\b/i.test(result.label);
+    const isHighConfidence = (typeof result.confidence === 'number') ? result.confidence >= 0.6 : false;
+
+    if (!matched && (!looksLikeTree || !isHighConfidence)) {
+      setIsScanning(false);
+      toast({
+        title: 'No Tree Detected',
+        description: 'Please point the camera at a tree or plant and try again.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const picked = matched || TREE_DATABASE[0];
+    setDetectedTree(picked);
     setIsScanning(false);
     
     toast({
-      title: "Tree Detected!",
-      description: `Found a ${selectedTree.name}!`,
+      title: 'Tree Detected!',
+      description: `Found a ${picked.name}!`,
     });
+
+    // Fire-and-forget: send a lightweight AR tree session to backend
+    (async () => {
+      try {
+        const duration = Math.max(1, Math.round(scanningProgress * 0.2));
+        const body = {
+          gameType: 'ar-tree',
+          score: 10 + (matched.rarity === 'rare' ? 40 : matched.rarity === 'uncommon' ? 20 : 10),
+          duration,
+          level: 1,
+          achievements: [],
+          gameData: { treeId: picked.id, treeName: picked.name }
+        } as any;
+
+        // Use backend session endpoint if user is authenticated; fallback silently
+        const { auth } = await import('@/lib/firebase');
+        const token = await auth.currentUser?.getIdToken();
+        if (!token) return;
+
+        await fetch('/api/games/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(body)
+        });
+      } catch (e) {
+        // Non-blocking
+        console.warn('Failed to record AR tree scan', e);
+      }
+    })();
   };
 
   const resetScanner = () => {
@@ -362,6 +411,7 @@ export const ARTreeScanner: React.FC<ARTreeScannerProps> = ({ onClose }) => {
       detectionTimeoutRef.current = null;
     }
     
+    if (abortRef.current) abortRef.current.abort();
     setDetectedTree(null);
     setScanningProgress(0);
     setCameraError(null);

@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -14,8 +15,7 @@ import {
   Brain,
   QrCode,
   Camera,
-  Share2,
-  Lock
+  Share2
 } from "lucide-react";
 
 interface DashboardProps {
@@ -83,7 +83,6 @@ export const Dashboard = ({ onStartQuiz, onStartGame, onQRScan, onARScan, onShar
                 >
                   <QrCode className="mr-3 h-5 w-5" />
                   QR Check-in
-                  <Lock className="ml-auto h-5 w-5 opacity-70" />
                 </Button>
               )}
               {onARScan && (
@@ -95,7 +94,6 @@ export const Dashboard = ({ onStartQuiz, onStartGame, onQRScan, onARScan, onShar
                 >
                   <Camera className="mr-3 h-5 w-5" />
                   Scan Trees
-                  <Lock className="ml-auto h-5 w-5 opacity-70" />
                 </Button>
               )}
               {onShareAchievement && (
@@ -114,7 +112,6 @@ export const Dashboard = ({ onStartQuiz, onStartGame, onQRScan, onARScan, onShar
                 >
                   <Share2 className="mr-3 h-5 w-5" />
                   Share Progress
-                  <Lock className="ml-auto h-5 w-5 opacity-70" />
                 </Button>
               )}
             </div>

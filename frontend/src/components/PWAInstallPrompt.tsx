@@ -232,3 +232,13 @@ export const PWAInstallPrompt: React.FC<PWAInstallPromptProps> = ({ onClose }) =
 };
 
 export default PWAInstallPrompt;
+
+
+
+
+
+
+
+
+
+

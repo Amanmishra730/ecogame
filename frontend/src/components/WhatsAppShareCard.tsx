@@ -214,3 +214,13 @@ export const WhatsAppShareCard: React.FC<WhatsAppShareCardProps> = ({
 };
 
 export default WhatsAppShareCard;
+
+
+
+
+
+
+
+
+
+

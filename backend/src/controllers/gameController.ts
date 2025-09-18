@@ -15,6 +15,13 @@ export const submitGameSession = async (req: AuthenticatedRequest, res: Response
 
     // Calculate XP based on score and game type
     let xpEarned = Math.floor(score * 1.5); // Base XP calculation
+    if (gameType === 'ar-waste') {
+      xpEarned = Math.floor(score * 1.8);
+    }
+    if (gameType === 'ar-tree') {
+      // Flat reward baseline for scans
+      xpEarned = Math.max(10, Math.floor(score * 1.2));
+    }
     
     // Bonus XP for achievements
     if (achievements && achievements.length > 0) {
@@ -38,29 +45,27 @@ export const submitGameSession = async (req: AuthenticatedRequest, res: Response
 
     // Update user stats
     const user = await User.findOne({ firebaseUid });
+    let newlyEarnedBadges: string[] = [];
     if (user) {
       const newXp = user.xp + xpEarned;
       const newLevel = Math.floor(newXp / 100) + 1;
       
       // Check for new badges
-      const newBadges = [...user.badges];
-      if (gameType === 'waste-sorting' && !newBadges.includes('waste_sorter')) {
-        newBadges.push('waste_sorter');
-      }
-      if (gameType === 'water-simulator' && !newBadges.includes('water_saver')) {
-        newBadges.push('water_saver');
-      }
-      if (score >= 90 && !newBadges.includes('eco_warrior')) {
-        newBadges.push('eco_warrior');
-      }
-      if (newLevel >= 25 && !newBadges.includes('level_25')) {
-        newBadges.push('level_25');
-      }
+      const candidateBadges: string[] = [];
+      if (gameType === 'waste-sorting') candidateBadges.push('waste_sorter');
+      if (gameType === 'water-simulator') candidateBadges.push('water_saver');
+      if (gameType === 'ar-waste') candidateBadges.push('ar_waste_ranger');
+      if (gameType === 'ar-tree') candidateBadges.push('tree_spotter');
+      if (score >= 90) candidateBadges.push('eco_warrior');
+      if (newLevel >= 25) candidateBadges.push('level_25');
+
+      newlyEarnedBadges = candidateBadges.filter((badge: string) => !user.badges.includes(badge));
+      const updatedBadges = [...user.badges, ...newlyEarnedBadges];
 
       await User.findByIdAndUpdate(user._id, {
         xp: newXp,
         level: newLevel,
-        badges: newBadges,
+        badges: updatedBadges,
         gamesPlayed: user.gamesPlayed + 1,
         lastActive: new Date()
       });
@@ -74,7 +79,7 @@ export const submitGameSession = async (req: AuthenticatedRequest, res: Response
         xpEarned,
         newLevel: user ? Math.floor((user.xp + xpEarned) / 100) + 1 : 1,
         achievements: achievements || [],
-        newBadges: user ? newBadges.filter(badge => !user.badges.includes(badge)) : []
+        newBadges: newlyEarnedBadges
       }
     });
   } catch (error) {
@@ -139,7 +144,7 @@ export const getGameLeaderboard = async (req: Request, res: Response): Promise<v
       success: true,
       data: sessions.map((session, index) => ({
         rank: Number(offset) + index + 1,
-        displayName: session.userId?.displayName || session.userId?.email || 'Anonymous',
+        displayName: (session as any).userId?.displayName || (session as any).userId?.email || 'Anonymous',
         gameType: session.gameType,
         score: session.score,
         xpEarned: session.xpEarned,

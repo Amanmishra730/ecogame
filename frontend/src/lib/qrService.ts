@@ -3,6 +3,12 @@
 import QRCode from 'qrcode';
 import QrScanner from 'qr-scanner';
 
+// Ensure web worker path is correctly resolved in bundlers (Vite/Next)
+// This is required so the QR scanner can decode frames off the main thread.
+// If not set, detection may never fire due to worker load failure.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+(QrScanner as any).WORKER_PATH = new URL('qr-scanner/qr-scanner-worker.min.js', import.meta.url).toString();
+
 export interface EcoTaskQR {
   id: string;
   type: 'checkin' | 'achievement' | 'share';
@@ -92,15 +98,22 @@ class QRService {
     }
 
     try {
-      this.scanner = new QrScanner(
-        videoElement,
-        (result) => this.handleQRResult(result),
-        {
-          highlightScanRegion: true,
-          highlightCodeOutline: true,
-          preferredCamera: 'environment' // Use back camera for better scanning
+      // Prefer back camera; add diagnostics and performance-friendly settings
+      this.scanner = new QrScanner(videoElement, (result) => this.handleQRResult(result), {
+        highlightScanRegion: true,
+        highlightCodeOutline: true,
+        preferredCamera: 'environment',
+        maxScansPerSecond: 12,
+        returnDetailedScanResult: true,
+        // Surface decoding errors to help diagnose non-detection
+        onDecodeError: (error) => {
+          // Swallow frequent not-found errors but log others for visibility
+          const message = error?.message || String(error);
+          if (!/No QR code found/i.test(message)) {
+            console.warn('QR decode error:', message);
+          }
         }
-      );
+      });
 
       await this.scanner.start();
       this.isScanning = true;
@@ -112,9 +125,16 @@ class QRService {
 
   // Stop QR code scanning
   stopScanning(): void {
-    if (this.scanner && this.isScanning) {
+    if (!this.scanner) {
+      this.isScanning = false;
+      return;
+    }
+    try {
       this.scanner.stop();
       this.scanner.destroy();
+    } catch (e) {
+      console.warn('Error stopping QR scanner', e);
+    } finally {
       this.scanner = null;
       this.isScanning = false;
     }
