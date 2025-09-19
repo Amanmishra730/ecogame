@@ -92,8 +92,6 @@ const Index = () => {
     }
   };
 
-<<<<<<< HEAD
-=======
   const handleQRCheckInSuccess = (result: any) => {
     toast.success(`Check-in successful! +${result.points} points earned!`);
     setShowQRScanner(false);
@@ -205,8 +203,6 @@ const Index = () => {
       {showWelcome && (
         <WelcomeBurst message={showWelcome} onDone={() => setShowWelcome(null)} />
       )}
-<<<<<<< HEAD
-=======
       
       {/* QR Scanner Modal */}
       {showQRScanner && (
