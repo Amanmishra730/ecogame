@@ -100,9 +100,9 @@ export const approveQuestion = async (req: AuthenticatedRequest, res: Response):
 
 export const exportQuizzesCsv = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
-    const quizzes = await Quiz.find({});
-    const rows = quizzes.flatMap(q => q.questions.map((question, idx) => ({
-      quizId: q._id.toString(),
+    const quizzes = await Quiz.find({}) as any[];
+    const rows = quizzes.flatMap((q: any) => q.questions.map((question: any, idx: number) => ({
+      quizId: (q._id as any)?.toString?.() ?? String(q.id ?? ''),
       title: q.title,
       category: q.category,
       difficulty: q.difficulty,
@@ -157,7 +157,7 @@ export const submitQuizAttempt = async (req: AuthenticatedRequest, res: Response
       }
 
       return {
-        questionId: question._id.toString(),
+        questionId: (question as any)?._id?.toString?.() ?? String(index),
         selectedAnswer: answer.selectedAnswer,
         isCorrect,
         timeSpent: answer.timeSpent || 0
@@ -184,26 +184,30 @@ export const submitQuizAttempt = async (req: AuthenticatedRequest, res: Response
 
     // Update user stats
     const user = await User.findOne({ firebaseUid });
+    let newlyEarnedBadges: string[] = [];
     if (user) {
       const newXp = user.xp + xpEarned;
       const newLevel = Math.floor(newXp / 100) + 1;
       
       // Check for new badges
-      const newBadges = [...user.badges];
-      if (user.completedQuizzes === 0 && !newBadges.includes('first_quiz')) {
-        newBadges.push('first_quiz');
+      const candidateBadges: string[] = [];
+      if (user.completedQuizzes === 0) {
+        candidateBadges.push('first_quiz');
       }
-      if (correctAnswers === quiz.questions.length && !newBadges.includes('quiz_master')) {
-        newBadges.push('quiz_master');
+      if (correctAnswers === quiz.questions.length) {
+        candidateBadges.push('quiz_master');
       }
-      if (newLevel >= 10 && !newBadges.includes('level_10')) {
-        newBadges.push('level_10');
+      if (newLevel >= 10) {
+        candidateBadges.push('level_10');
       }
+
+      newlyEarnedBadges = candidateBadges.filter((badge: string) => !user.badges.includes(badge));
+      const updatedBadges = [...user.badges, ...newlyEarnedBadges];
 
       await User.findByIdAndUpdate(user._id, {
         xp: newXp,
         level: newLevel,
-        badges: newBadges,
+        badges: updatedBadges,
         completedQuizzes: user.completedQuizzes + 1,
         lastActive: new Date()
       });
@@ -217,7 +221,7 @@ export const submitQuizAttempt = async (req: AuthenticatedRequest, res: Response
         totalQuestions: quiz.questions.length,
         xpEarned,
         timeSpent,
-        newBadges: user ? newBadges.filter(badge => !user.badges.includes(badge)) : []
+        newBadges: newlyEarnedBadges
       }
     });
   } catch (error) {

@@ -2,7 +2,7 @@ import mongoose, { Document, Schema } from 'mongoose';
 
 export interface IGameSession extends Document {
   userId: string;
-  gameType: 'waste-sorting' | 'water-simulator' | 'energy-challenge';
+  gameType: 'waste-sorting' | 'water-simulator' | 'energy-challenge' | 'ar-waste' | 'ar-tree';
   score: number;
   xpEarned: number;
   duration: number; // in seconds
@@ -14,6 +14,9 @@ export interface IGameSession extends Document {
     waterSaved?: number;
     energyEfficient?: number;
     accuracy?: number;
+    itemsRecognized?: number;
+    treeId?: string;
+    treeName?: string;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -28,7 +31,7 @@ const GameSessionSchema = new Schema<IGameSession>({
   gameType: {
     type: String,
     required: true,
-    enum: ['waste-sorting', 'water-simulator', 'energy-challenge']
+    enum: ['waste-sorting', 'water-simulator', 'energy-challenge', 'ar-waste', 'ar-tree']
   },
   score: {
     type: Number,
@@ -69,7 +72,10 @@ const GameSessionSchema = new Schema<IGameSession>({
     itemsSorted: Number,
     waterSaved: Number,
     energyEfficient: Number,
-    accuracy: Number
+    accuracy: Number,
+    itemsRecognized: Number,
+    treeId: String,
+    treeName: String
   }
 }, {
   timestamps: true

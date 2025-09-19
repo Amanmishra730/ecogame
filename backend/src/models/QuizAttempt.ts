@@ -9,7 +9,7 @@ export interface IQuizAnswer {
 
 export interface IQuizAttempt extends Document {
   userId: string;
-  quizId: string;
+  quizId: mongoose.Types.ObjectId;
   answers: IQuizAnswer[];
   score: number;
   totalQuestions: number;

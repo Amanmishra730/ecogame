@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -11,12 +12,18 @@ import {
   TrendingUp,
   Award,
   Gamepad2,
-  Brain
+  Brain,
+  QrCode,
+  Camera,
+  Share2
 } from "lucide-react";
 
 interface DashboardProps {
   onStartQuiz: () => void;
   onStartGame: () => void;
+  onQRScan?: () => void;
+  onARScan?: () => void;
+  onShareAchievement?: (achievement: any) => void;
   userStats: {
     xp: number;
     level: number;
@@ -27,7 +34,7 @@ interface DashboardProps {
   };
 }
 
-export const Dashboard = ({ onStartQuiz, onStartGame, userStats }: DashboardProps) => {
+export const Dashboard = ({ onStartQuiz, onStartGame, onQRScan, onARScan, onShareAchievement, userStats }: DashboardProps) => {
   return (
     <div className="space-y-6">
       {/* Hero Section */}
@@ -63,6 +70,50 @@ export const Dashboard = ({ onStartQuiz, onStartGame, userStats }: DashboardProp
                 <Gamepad2 className="mr-3 h-5 w-5" />
                 Play Games
               </Button>
+            </div>
+            
+            {/* New PWA Features */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+              {onQRScan && (
+                <Button 
+                  onClick={onQRScan}
+                  size="lg"
+                  variant="outline"
+                  className="bg-white/80 text-green-700 hover:bg-white border-green-300 shadow-lg h-16"
+                >
+                  <QrCode className="mr-3 h-5 w-5" />
+                  QR Check-in
+                </Button>
+              )}
+              {onARScan && (
+                <Button 
+                  onClick={onARScan}
+                  size="lg"
+                  variant="outline"
+                  className="bg-white/80 text-blue-700 hover:bg-white border-blue-300 shadow-lg h-16"
+                >
+                  <Camera className="mr-3 h-5 w-5" />
+                  Scan Trees
+                </Button>
+              )}
+              {onShareAchievement && (
+                <Button 
+                  onClick={() => onShareAchievement({
+                    id: `achievement_${Date.now()}`,
+                    title: "Eco Champion!",
+                    description: "You're making a difference for the planet!",
+                    points: userStats.xp,
+                    category: "achievement",
+                    timestamp: new Date().toISOString()
+                  })}
+                  size="lg"
+                  variant="outline"
+                  className="bg-white/80 text-purple-700 hover:bg-white border-purple-300 shadow-lg h-16"
+                >
+                  <Share2 className="mr-3 h-5 w-5" />
+                  Share Progress
+                </Button>
+              )}
             </div>
           </CardContent>
         </div>

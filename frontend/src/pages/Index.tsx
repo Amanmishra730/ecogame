@@ -16,11 +16,18 @@ import { GamingBackground } from "@/components/GamingBackground";
 import { useUserProgress } from "@/contexts/UserProgressContext";
 import { toast } from "sonner";
 import { WelcomeBurst } from "@/components/WelcomeBurst";
+import QRScanner from "@/components/QRScanner";
+import ARTreeScanner from "@/components/ARTreeScanner";
+import WhatsAppShareCard from "@/components/WhatsAppShareCard";
 
 const Index = () => {
   const [currentView, setCurrentView] = useState("dashboard");
   const [showWelcome, setShowWelcome] = useState<string | null>(null);
   const [selectedQuizCategory, setSelectedQuizCategory] = useState<string>("general");
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [showARScanner, setShowARScanner] = useState(false);
+  const [showShareCard, setShowShareCard] = useState(false);
+  const [shareAchievement, setShareAchievement] = useState<any>(null);
   const { userProgress, completeQuiz, completeGame, updateStreak, loading: progressLoading } = useUserProgress();
 
   // Convert userProgress to userStats format for compatibility
@@ -65,6 +72,19 @@ const Index = () => {
     // Handle async operations in the background
     try {
       await completeGame(score);
+      
+      // Show share card for significant achievements
+      if (score >= 100) {
+        setShareAchievement({
+          id: `game_${Date.now()}`,
+          title: "High Score Achievement!",
+          description: `You scored ${score} points!`,
+          points: score,
+          category: "gaming",
+          timestamp: new Date().toISOString()
+        });
+        setShowShareCard(true);
+      }
     } catch (error) {
       console.error('Error completing game:', error);
       // Show error toast but don't block the UI
@@ -72,6 +92,17 @@ const Index = () => {
     }
   };
 
+<<<<<<< HEAD
+=======
+  const handleQRCheckInSuccess = (result: any) => {
+    toast.success(`Check-in successful! +${result.points} points earned!`);
+    setShowQRScanner(false);
+  };
+
+  const handleShareAchievement = (achievement: any) => {
+    setShareAchievement(achievement);
+    setShowShareCard(true);
+  };
   // Update streak when component mounts
   React.useEffect(() => {
     if (userProgress) {
@@ -120,11 +151,27 @@ const Index = () => {
         return <Leaderboard />;
       case "profile":
         return <Profile userStats={userStats} />;
+      case "qr-scanner":
+        return (
+          <QRScanner 
+            onClose={() => setCurrentView("dashboard")}
+            onCheckInSuccess={handleQRCheckInSuccess}
+          />
+        );
+      case "ar-scanner":
+        return (
+          <ARTreeScanner 
+            onClose={() => setCurrentView("dashboard")}
+          />
+        );
       default:
         return (
           <Dashboard
             onStartQuiz={() => setCurrentView("quiz-categories")}
             onStartGame={() => setCurrentView("games")}
+            onQRScan={() => setCurrentView("qr-scanner")}
+            onARScan={() => setCurrentView("ar-scanner")}
+            onShareAchievement={handleShareAchievement}
             userStats={userStats}
           />
         );
@@ -157,6 +204,40 @@ const Index = () => {
       <GamingBackground />
       {showWelcome && (
         <WelcomeBurst message={showWelcome} onDone={() => setShowWelcome(null)} />
+      )}
+<<<<<<< HEAD
+=======
+      
+      {/* QR Scanner Modal */}
+      {showQRScanner && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <QRScanner 
+            onClose={() => setShowQRScanner(false)}
+            onCheckInSuccess={handleQRCheckInSuccess}
+          />
+        </div>
+      )}
+
+      {/* AR Scanner Modal */}
+      {showARScanner && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <ARTreeScanner 
+            onClose={() => setShowARScanner(false)}
+          />
+        </div>
+      )}
+
+      {/* WhatsApp Share Card Modal */}
+      {showShareCard && shareAchievement && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <WhatsAppShareCard 
+            achievement={shareAchievement}
+            onClose={() => {
+              setShowShareCard(false);
+              setShareAchievement(null);
+            }}
+          />
+        </div>
       )}
       <div className="container mx-auto p-4 relative z-20">
         <div className="flex flex-col lg:flex-row gap-6">

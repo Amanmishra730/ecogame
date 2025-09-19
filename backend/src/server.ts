@@ -10,6 +10,7 @@ import initializeFirebase from './config/firebase';
 import userRoutes from './routes/userRoutes';
 import quizRoutes from './routes/quizRoutes';
 import gameRoutes from './routes/gameRoutes';
+import aiRoutes from './routes/aiRoutes';
 
 // Load environment variables
 dotenv.config();
@@ -46,6 +47,7 @@ app.get('/health', (req, res) => {
 app.use('/api/users', userRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/games', gameRoutes);
+app.use('/api/ai', aiRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
