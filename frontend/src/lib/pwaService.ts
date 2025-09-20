@@ -93,6 +93,12 @@ class PWAService {
   }
 
   async registerServiceWorker(): Promise<void> {
+    // Never register a service worker during development.
+    // Vite injects import.meta.env.PROD at build time.
+    if (!(import.meta as any).env?.PROD) {
+      console.log('[DEV] Skipping service worker registration');
+      return;
+    }
     if ('serviceWorker' in navigator) {
       try {
         const registration = await navigator.serviceWorker.register('/sw.js');

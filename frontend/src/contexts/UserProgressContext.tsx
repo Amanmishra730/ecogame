@@ -41,51 +41,51 @@ export const UserProgressProvider: React.FC<UserProgressProviderProps> = ({ chil
       setError(null);
       console.log('Loading user progress for user:', user.uid);
       
-      // Always try Firebase first to get the latest data
-      try {
-        const progress = await UserProgressService.ensureUserProgress(user.uid, user.displayName || undefined);
-        console.log('User progress loaded from Firebase:', progress);
+      // Use the improved recovery service that handles both Firebase and localStorage
+      const progress = await DataRecoveryService.recoverUserProgress(user.uid);
+      
+      if (progress) {
+        console.log('✅ User progress loaded successfully:', progress);
         setUserProgress(progress);
-        // Save to localStorage as backup
-        await DataRecoveryService.backupUserProgress(user.uid, progress);
         setLoading(false);
         return;
+      }
+      
+      // If no progress found anywhere, create new progress
+      console.log('No existing progress found, creating new user progress');
+      const defaultProgress = {
+        userId: user.uid,
+        displayName: user.displayName || undefined,
+        xp: 0,
+        level: 1,
+        badges: 0,
+        completedQuizzes: 0,
+        gamesPlayed: 0,
+        streak: 0,
+        lastActiveDate: new Date().toISOString().split('T')[0],
+        achievements: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Try to create in Firebase first
+      try {
+        const createdProgress = await UserProgressService.createUserProgress(user.uid, user.displayName || undefined);
+        console.log('✅ New progress created in Firebase:', createdProgress);
+        setUserProgress(createdProgress);
+        await DataRecoveryService.backupUserProgress(user.uid, createdProgress);
       } catch (firebaseError) {
-        console.warn('Firebase failed, attempting data recovery:', firebaseError);
-        
-        // Try to recover data using the recovery service
-        const recoveredProgress = await DataRecoveryService.recoverUserProgress(user.uid);
-        if (recoveredProgress) {
-          console.log('Data recovered successfully:', recoveredProgress);
-          setUserProgress(recoveredProgress);
-          setLoading(false);
-          return;
-        }
-        
-        // If recovery fails, create new progress
-        console.log('No data found, creating new user progress');
-        const defaultProgress = {
-          userId: user.uid,
-          displayName: user.displayName || undefined,
-          xp: 0,
-          level: 1,
-          badges: 0,
-          completedQuizzes: 0,
-          gamesPlayed: 0,
-          streak: 0,
-          lastActiveDate: new Date().toISOString().split('T')[0],
-          achievements: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
+        console.warn('⚠️ Could not create in Firebase, using local only:', firebaseError);
         setUserProgress(defaultProgress);
         await DataRecoveryService.backupUserProgress(user.uid, defaultProgress);
-        setLoading(false);
       }
+      
+      setLoading(false);
     } catch (err) {
-      console.error('Error loading user progress:', err);
+      console.error('❌ Error loading user progress:', err);
       setError(err instanceof Error ? err.message : 'Failed to load user progress');
-      // Set default progress on error to prevent infinite loading
+      
+      // Last resort - create local-only progress
       const defaultProgress = {
         userId: user.uid,
         displayName: user.displayName || undefined,
@@ -230,29 +230,8 @@ export const UserProgressProvider: React.FC<UserProgressProviderProps> = ({ chil
 
   useEffect(() => {
     if (currentUser) {
-      // Add timeout to prevent infinite loading - reduced to 5 seconds for better UX
-      const timeoutId = setTimeout(() => {
-        console.warn('User progress loading timeout, setting default progress');
-        setUserProgress({
-          userId: currentUser.uid,
-          displayName: currentUser.displayName || undefined,
-          xp: 0,
-          level: 1,
-          badges: 0,
-          completedQuizzes: 0,
-          gamesPlayed: 0,
-          streak: 0,
-          lastActiveDate: new Date().toISOString().split('T')[0],
-          achievements: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
-        setLoading(false);
-      }, 5000); // 5 second timeout
-
+      // Load user progress without timeout to prevent data loss
       loadUserProgress(currentUser);
-      
-      return () => clearTimeout(timeoutId);
     } else {
       setUserProgress(null);
       setLoading(false);

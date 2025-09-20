@@ -20,8 +20,8 @@ export const DataRecoveryButton = () => {
       setIsRecovering(true);
       const recoveredProgress = await DataRecoveryService.recoverUserProgress(currentUser.uid);
       
-      if (recoveredProgress) {
-        toast.success('Data recovered successfully!');
+      if (recoveredProgress) { 
+        toast.success(`Data recovered successfully! Restored ${recoveredProgress.xp} XP and Level ${recoveredProgress.level}`);
         // Refresh the progress to update the UI
         await refreshProgress();
       } else {
@@ -40,13 +40,13 @@ export const DataRecoveryButton = () => {
     
     try {
       setIsSyncing(true);
-      const syncedProgress = await DataRecoveryService.forceSyncFromFirebase(currentUser.uid);
+      const syncedProgress = await DataRecoveryService.smartSync(currentUser.uid);
       
       if (syncedProgress) {
-        toast.success('Data synced from Firebase!');
+        toast.success(`Data synced successfully! Current: ${syncedProgress.xp} XP and Level ${syncedProgress.level}`);
         await refreshProgress();
       } else {
-        toast.error('No data found in Firebase');
+        toast.error('No data found to sync');
       }
     } catch (error) {
       console.error('Error syncing data:', error);
@@ -88,7 +88,7 @@ export const DataRecoveryButton = () => {
             className="bg-orange-600 hover:bg-orange-700"
           >
             <RefreshCw className={`h-4 w-4 mr-1 ${isRecovering ? 'animate-spin' : ''}`} />
-            {isRecovering ? 'Recovering...' : 'Recover Data'}
+            {isRecovering ? 'Recovering...' : 'Recover Best Data'}
           </Button>
           <Button
             onClick={handleForceSync}
@@ -98,7 +98,7 @@ export const DataRecoveryButton = () => {
             className="border-orange-300 text-orange-700 hover:bg-orange-100"
           >
             <Database className={`h-4 w-4 mr-1 ${isSyncing ? 'animate-pulse' : ''}`} />
-            {isSyncing ? 'Syncing...' : 'Force Sync'}
+            {isSyncing ? 'Syncing...' : 'Smart Sync'}
           </Button>
         </div>
       </CardContent>
