@@ -40,6 +40,29 @@
 
   <body>
     <div id="root"></div>
+    <!-- Dev-only: aggressively unregister any service workers and clear caches to avoid stale bundles -->
+    <script>
+      (async function () {
+        try {
+          const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+          if (isLocal && 'serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(r => r.unregister()));
+            if (window.caches && caches.keys) {
+              const keys = await caches.keys();
+              await Promise.all(keys.map(k => caches.delete(k)));
+            }
+            // Also ensure no active controller remains
+            if (navigator.serviceWorker.controller) {
+              navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
+            }
+            console.log('[DEV] Unregistered all service workers and cleared caches');
+          }
+        } catch (e) {
+          console.warn('Dev SW cleanup failed:', e);
+        }
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

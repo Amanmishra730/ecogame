@@ -101,7 +101,6 @@ const Index = () => {
     setShareAchievement(achievement);
     setShowShareCard(true);
   };
-
   // Update streak when component mounts
   React.useEffect(() => {
     if (userProgress) {
@@ -236,7 +235,6 @@ const Index = () => {
           />
         </div>
       )}
-
       <div className="container mx-auto p-4 relative z-20">
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Navigation Sidebar */}

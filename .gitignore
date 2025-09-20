@@ -67,4 +67,6 @@ node_modules/
 
 # dataconnect generated files
 .dataconnect
-\nbackend/.env
+
+# Backend environment files
+backend/.env

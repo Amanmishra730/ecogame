@@ -37,25 +37,33 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 
 const App = () => {
   useEffect(() => {
-    // Initialize PWA services
-    const initializePWA = async () => {
+    // In development, service workers can cache old bundles and block HMR updates.
+    // Only register PWA in production; in dev, proactively unregister any SWs and clear caches.
+    const setup = async () => {
       try {
-        // Register service worker
-        await pwaService.registerServiceWorker();
-        
-        // Initialize offline storage
-        await offlineStorageService.initialize();
-        
-        // Clear expired cache
-        await offlineStorageService.clearExpiredCache();
-        
-        console.log('PWA services initialized successfully');
+        if (import.meta.env.PROD) {
+          await pwaService.registerServiceWorker();
+          await offlineStorageService.initialize();
+          await offlineStorageService.clearExpiredCache();
+          console.log('PWA services initialized successfully');
+        } else {
+          if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(r => r.unregister()));
+            // Also try to clear any caches created previously
+            if (window.caches && caches.keys) {
+              const keys = await caches.keys();
+              await Promise.all(keys.map(k => caches.delete(k)));
+            }
+            console.log('[DEV] Unregistered service workers and cleared caches');
+          }
+        }
       } catch (error) {
-        console.error('Error initializing PWA services:', error);
+        console.error('PWA setup error:', error);
       }
     };
 
-    initializePWA();
+    setup();
   }, []);
 
   return (

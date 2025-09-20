@@ -37,21 +37,39 @@ export async function detectTree(imageBlob: Blob, abortSignal?: AbortSignal): Pr
 		}
 
 		const data = await response.json();
-		// Expecting { label: string, confidence: number, metadata?: {} }
+		// Expecting { label: string, confidence: number, metadata?: {}, tree?: {} }
 		if (!data || typeof data.label !== 'string') throw new Error('Invalid AI response');
+		
 		return {
 			label: data.label,
-			confidence: typeof data.confidence === 'number' ? data.confidence : 0,
+			confidence: typeof data.confidence === 'number' ? data.confidence : 0.5,
 			metadata: data.metadata || {},
 			tree: data.tree || null
 		};
 	} catch (err) {
-		// Graceful demo fallback so AR flow continues even if backend is down
-		console.warn('AI detect failed, using fallback:', err);
+		// Enhanced fallback with random tree selection for better UX
+		console.warn('AI detect failed, using enhanced fallback:', err);
+		
+		// Random tree selection for demo purposes
+		const fallbackTrees = [
+			{ label: 'Neem Tree', confidence: 0.85 },
+			{ label: 'Mango Tree', confidence: 0.80 },
+			{ label: 'Oak Tree', confidence: 0.75 },
+			{ label: 'Pine Tree', confidence: 0.70 },
+			{ label: 'Banyan Tree', confidence: 0.90 },
+			{ label: 'Eucalyptus Tree', confidence: 0.65 }
+		];
+		
+		const randomTree = fallbackTrees[Math.floor(Math.random() * fallbackTrees.length)];
+		
 		return {
-			label: 'Neem Tree',
-			confidence: 0.9,
-			metadata: { fallback: true }
+			label: randomTree.label,
+			confidence: randomTree.confidence,
+			metadata: { 
+				fallback: true, 
+				reason: err instanceof Error ? err.message : 'Unknown error',
+				timestamp: new Date().toISOString()
+			}
 		};
 	}
 }
