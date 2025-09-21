@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -11,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import app, { auth } from "@/lib/firebase";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { QuizAdminService } from "@/lib/quizAdminService";
+
 import { 
   BarChart3, 
   BookOpen, 
@@ -31,7 +33,10 @@ import {
   Video,
   Clock,
   Download,
-  Send
+  Send,
+  Edit,
+  Play,
+  Pause
 } from "lucide-react";
 
 interface QuizFormQuestion {
@@ -43,6 +48,7 @@ interface QuizFormQuestion {
   difficulty: 'easy' | 'medium' | 'hard';
   points: number;
 }
+
 
 interface LeaderboardRow {
   rank: number;
@@ -74,6 +80,7 @@ interface SessionItem {
 }
 
 export default function Admin() {
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [title, setTitle] = React.useState("");
   const [description, setDescription] = React.useState("");
@@ -82,6 +89,7 @@ export default function Admin() {
   const [timeLimit, setTimeLimit] = React.useState(5);
   const [questions, setQuestions] = React.useState<QuizFormQuestion[]>([]);
   const [loading, setLoading] = React.useState(false);
+
   const [showCreateForm, setShowCreateForm] = React.useState(false);
   const [query, setQuery] = React.useState("");
 
@@ -99,11 +107,13 @@ export default function Admin() {
     { name: "Emma Davis", action: "started Climate Challenge", time: "6 hours ago", avatar: "ED" }
   ];
 
-  const quizzes = [
+  const initialQuizzes = [
     { id: 'q1', title: 'React Fundamentals', createdAt: '2024-01-15', category: 'Frontend Development', questions: 25, attempts: 142, difficulty: 'medium', status: 'active' },
     { id: 'q2', title: 'JavaScript ES6+', createdAt: '2024-01-12', category: 'Programming', questions: 30, attempts: 89, difficulty: 'hard', status: 'active' },
     { id: 'q3', title: 'Climate Basics', createdAt: '2024-02-01', category: 'Environment', questions: 20, attempts: 57, difficulty: 'easy', status: 'draft' },
-  ] as const;
+  ];
+
+  const [allQuizzes, setAllQuizzes] = React.useState(initialQuizzes);
 
   // Mock data for XP & Leaderboard
   const xpStats = {
@@ -197,10 +207,46 @@ export default function Admin() {
     try {
       setLoading(true);
       if (!title || questions.length === 0) { throw new Error('Title and at least one question required'); }
-      const meta = { title, description, category, difficulty, totalPoints, timeLimit, isActive: true } as const;
+
+      
+      // Create new quiz object for Class Space
+      const newQuiz = {
+        id: `q${Date.now()}`,
+        title,
+        createdAt: new Date().toISOString().split('T')[0],
+        category,
+        questions: questions.length,
+        attempts: 0,
+        difficulty,
+        status: 'draft' as const
+      };
+      
+      // Add to quizzes array (Class Space)
+      setAllQuizzes(prev => [...prev, newQuiz]);
+      
+      // Also save to Firestore for persistence
+      const meta = { title, description, category, difficulty, totalPoints, timeLimit, isActive: false } as const;
       const id = await QuizAdminService.createQuiz(meta, questions);
-      setTitle(""); setDescription(""); setQuestions([]);
-      alert(`Quiz created in Firestore with id ${id}`);
+
+      
+      // Reset form
+      setTitle(""); 
+      setDescription(""); 
+      setQuestions([]); 
+      setShowCreateForm(false);
+      
+      // Show success message
+      alert(`Quiz "${title}" created successfully! 
+      
+✅ Quiz has been added to Class Space
+✅ Status: Draft (students cannot access yet)
+✅ Next: Go to Class Space to activate the quiz for students
+
+To make it available to students:
+1. Go to Class Space section
+2. Find your quiz in the table
+3. Click the actions menu (⋮) 
+4. Select "Activate Quiz"`);
     } catch (e:any) {
       alert(e.message);
     } finally {
@@ -236,6 +282,7 @@ export default function Admin() {
       setLoading(false);
     }
   };
+
 
   const renderDashboard = () => (
     <div className="space-y-6">
@@ -295,7 +342,7 @@ export default function Admin() {
               <p className="text-3xl font-bold">{stats.xpDistributed.toLocaleString()}</p>
               <p className="text-sm text-green-600 flex items-center mt-1">
                 <TrendingUp className="w-3 h-3 mr-1" />
-                +18% from last month
+                +8% from last month
               </p>
             </div>
             <div className="p-3 bg-purple-100 rounded-full">
@@ -311,353 +358,68 @@ export default function Admin() {
               <p className="text-3xl font-bold">{stats.certificatesIssued}</p>
               <p className="text-sm text-green-600 flex items-center mt-1">
                 <TrendingUp className="w-3 h-3 mr-1" />
-                +23% from last month
+                +15% from last month
               </p>
             </div>
-            <div className="p-3 bg-orange-100 rounded-full">
-              <Award className="w-6 h-6 text-orange-600" />
+            <div className="p-3 bg-yellow-100 rounded-full">
+              <Award className="w-6 h-6 text-yellow-600" />
             </div>
           </div>
         </Card>
       </div>
 
-      {/* Learning Progress and Recent Activity */}
+      {/* Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="w-5 h-5" />
-              Learning Progress Overview
-            </CardTitle>
-            <CardDescription>Student engagement and completion rates over the last 6 months</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Quiz Completion Rate</span>
-                <span className="text-sm font-medium">87%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-blue-600 h-2 rounded-full" style={{width: '87%'}}></div>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Average Score</span>
-                <span className="text-sm font-medium">82%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-green-600 h-2 rounded-full" style={{width: '82%'}}></div>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <span className="text-sm">Student Retention</span>
-                <span className="text-sm font-medium">94%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-purple-600 h-2 rounded-full" style={{width: '94%'}}></div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
             <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest student interactions</CardDescription>
+            <CardDescription>Latest student achievements and progress</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
               {recentActivity.map((activity, index) => (
-                <div key={index} className="flex items-center gap-3">
-                  <Avatar className="w-8 h-8">
-                    <AvatarFallback className="text-xs">{activity.avatar}</AvatarFallback>
+                <div key={index} className="flex items-center space-x-4">
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback>{activity.avatar}</AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1">
                     <p className="text-sm font-medium">{activity.name}</p>
-                    <p className="text-xs text-muted-foreground">{activity.action}</p>
+                    <p className="text-sm text-muted-foreground">{activity.action}</p>
                   </div>
-                  <span className="text-xs text-muted-foreground">{activity.time}</span>
+                  <div className="text-xs text-muted-foreground">{activity.time}</div>
                 </div>
               ))}
             </div>
           </CardContent>
         </Card>
-      </div>
-    </div>
-  );
 
-  const renderSettings = () => (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Settings</h2>
-        <p className="text-sm text-muted-foreground">Manage your platform preferences and configuration</p>
-      </div>
+      <Card>
+        <CardHeader>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Profile Settings */}
-        <Card className="rounded-2xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">Profile Settings</CardTitle>
-            <CardDescription>Update your personal information</CardDescription>
+            <CardTitle>Quick Actions</CardTitle>
+            <CardDescription>Common administrative tasks</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div>
-              <label className="text-sm">Full Name</label>
-              <Input value={fullName} onChange={(e)=>setFullName(e.target.value)} className="mt-1"/>
-            </div>
-            <div>
-              <label className="text-sm">Email</label>
-              <Input value={email} onChange={(e)=>setEmail(e.target.value)} className="mt-1"/>
-            </div>
-            <div>
-              <label className="text-sm">Bio</label>
-              <Textarea value={bio} onChange={(e)=>setBio(e.target.value)} placeholder="Tell us about yourself..." className="mt-1"/>
-            </div>
-            <Button className="mt-2">Save Changes</Button>
-          </CardContent>
-        </Card>
-
-        {/* Notifications */}
-        <Card className="rounded-2xl">
-          <CardHeader>
-            <CardTitle>Notifications</CardTitle>
-            <CardDescription>Configure your notification preferences</CardDescription>
-          </CardHeader>
-          <CardContent className="divide-y">
-            <div className="py-3 flex items-center justify-between">
-              <div>
-                <div className="font-medium text-sm">New Quiz Submissions</div>
-                <div className="text-xs text-muted-foreground">Get notified when students submit quizzes</div>
-              </div>
-              <Switch checked={notifyNewQuiz} onCheckedChange={setNotifyNewQuiz} />
-            </div>
-            <div className="py-3 flex items-center justify-between">
-              <div>
-                <div className="font-medium text-sm">Class Reminders</div>
-                <div className="text-xs text-muted-foreground">Receive reminders for upcoming classes</div>
-              </div>
-              <Switch checked={notifyClassReminders} onCheckedChange={setNotifyClassReminders} />
-            </div>
-            <div className="py-3 flex items-center justify-between">
-              <div>
-                <div className="font-medium text-sm">Certificate Requests</div>
-                <div className="text-xs text-muted-foreground">Alert when students request certificates</div>
-              </div>
-              <Switch checked={notifyCertRequests} onCheckedChange={setNotifyCertRequests} />
-            </div>
-            <div className="py-3 flex items-center justify-between">
-              <div>
-                <div className="font-medium text-sm">Weekly Reports</div>
-                <div className="text-xs text-muted-foreground">Get weekly platform activity summaries</div>
-              </div>
-              <Switch checked={notifyWeeklyReports} onCheckedChange={setNotifyWeeklyReports} />
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3">
+              <Button variant="outline" className="h-20 flex-col">
+                <Plus className="w-5 h-5 mb-2" />
+                Create Quiz
+              </Button>
+              <Button variant="outline" className="h-20 flex-col">
+                <Users className="w-5 h-5 mb-2" />
+                Manage Classes
+              </Button>
+              <Button variant="outline" className="h-20 flex-col">
+                <Award className="w-5 h-5 mb-2" />
+                Issue Certificate
+              </Button>
+              <Button variant="outline" className="h-20 flex-col">
+                <BarChart3 className="w-5 h-5 mb-2" />
+                View Reports
+              </Button>
             </div>
           </CardContent>
         </Card>
-      </div>
-
-      {/* Additional panels */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="rounded-2xl">
-          <CardHeader>
-            <CardTitle>Security</CardTitle>
-            <CardDescription>Manage account security</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button variant="outline">Change Password</Button>
-            <Button variant="outline">Enable 2FA</Button>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl">
-          <CardHeader>
-            <CardTitle>Platform Settings</CardTitle>
-            <CardDescription>Configure platform defaults</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-medium text-sm">Maintenance Mode</div>
-                <div className="text-xs text-muted-foreground">Temporarily disable user access</div>
-              </div>
-              <Switch />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="font-medium text-sm">Email Notifications</div>
-                <div className="text-xs text-muted-foreground">Send system emails to users</div>
-              </div>
-              <Switch defaultChecked />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-
-  const renderCertifications = () => (
-    <div className="space-y-6">
-      {/* Header and action */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Certifications</h2>
-          <p className="text-sm text-muted-foreground">Manage certificate templates and issue certificates</p>
-        </div>
-        <Button className="rounded-xl"><Plus className="w-4 h-4 mr-2"/> Issue Certificate</Button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="rounded-2xl"><CardContent className="p-6 flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Total Issued</p><p className="text-3xl font-bold">{certStats.totalIssued}</p></div><div className="p-3 bg-blue-100 rounded-full"><Award className="w-6 h-6 text-blue-700"/></div></CardContent></Card>
-        <Card className="rounded-2xl"><CardContent className="p-6 flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Delivered</p><p className="text-3xl font-bold">{certStats.delivered}</p></div><div className="p-3 bg-emerald-100 rounded-full"><Send className="w-6 h-6 text-emerald-700"/></div></CardContent></Card>
-        <Card className="rounded-2xl"><CardContent className="p-6 flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Templates</p><p className="text-3xl font-bold">{certStats.templates}</p></div><div className="p-3 bg-orange-100 rounded-full"><FileText className="w-6 h-6 text-orange-700"/></div></CardContent></Card>
-        <Card className="rounded-2xl"><CardContent className="p-6 flex items-center justify-between"><div><p className="text-sm text-muted-foreground">This Month</p><p className="text-3xl font-bold">{certStats.thisMonth}</p></div><div className="p-3 bg-purple-100 rounded-full"><TrendingUp className="w-6 h-6 text-purple-700"/></div></CardContent></Card>
-      </div>
-
-      {/* Templates + Recent */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="rounded-2xl">
-          <CardHeader>
-            <CardTitle>Certificate Templates</CardTitle>
-            <CardDescription>Manage your certificate designs</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {certTemplates.map((t, i) => (
-              <div key={i} className="border rounded-xl p-4 flex items-center justify-between">
-                <div>
-                  <div className="font-medium">{t.title}</div>
-                  <div className="text-xs text-muted-foreground">{t.type}</div>
-                </div>
-                <Button variant="outline" size="sm">Edit</Button>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card className="rounded-2xl">
-          <CardHeader>
-            <CardTitle>Recently Issued Certificates</CardTitle>
-            <CardDescription>Latest certificate awards</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {recentCerts.map((c, i) => (
-              <div key={i} className="border rounded-xl p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-8 h-8"><AvatarFallback>{c.name.split(' ').map(n=>n[0]).join('').slice(0,2)}</AvatarFallback></Avatar>
-                    <div>
-                      <div className="font-medium">{c.name}</div>
-                      <div className="text-sm text-muted-foreground">{c.course}</div>
-                      <div className="flex flex-wrap gap-2 mt-1 text-xs text-muted-foreground items-center">
-                        <Calendar className="w-3 h-3"/> {c.date}
-                        <span className="mx-1">•</span>
-                        <FileText className="w-3 h-3"/> {c.template}
-                        <span className="mx-1">•</span>
-                        <Badge className={c.status==='Delivered' ? 'bg-emerald-100 text-emerald-700' : 'bg-yellow-100 text-yellow-700'}>{c.status}</Badge>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button variant="ghost" size="icon"><Download className="w-4 h-4"/></Button>
-                    <Button variant="ghost" size="icon"><Send className="w-4 h-4"/></Button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-
-  const renderXPLeaderboard = () => (
-    <div className="space-y-6">
-      {/* Header and action */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">XP & Leaderboard</h2>
-          <p className="text-sm text-muted-foreground">Track student progress and engagement</p>
-        </div>
-        <Button variant="outline" className="rounded-xl">
-          <Trophy className="w-4 h-4 mr-2" /> Manage XP Rules
-        </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="rounded-2xl"><CardContent className="p-6 flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Total XP Distributed</p><p className="text-3xl font-bold">{xpStats.totalXP.toLocaleString()}</p></div><div className="p-3 bg-yellow-100 rounded-full"><Trophy className="w-6 h-6 text-yellow-700"/></div></CardContent></Card>
-        <Card className="rounded-2xl"><CardContent className="p-6 flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Active Students</p><p className="text-3xl font-bold">{xpStats.activeStudents}</p></div><div className="p-3 bg-blue-100 rounded-full"><Users className="w-6 h-6 text-blue-700"/></div></CardContent></Card>
-        <Card className="rounded-2xl"><CardContent className="p-6 flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Certificates Earned</p><p className="text-3xl font-bold">{xpStats.certificates}</p></div><div className="p-3 bg-green-100 rounded-full"><Award className="w-6 h-6 text-green-700"/></div></CardContent></Card>
-        <Card className="rounded-2xl"><CardContent className="p-6 flex items-center justify-between"><div><p className="text-sm text-muted-foreground">Avg Weekly XP</p><p className="text-3xl font-bold">{xpStats.avgWeeklyXP}</p></div><div className="p-3 bg-purple-100 rounded-full"><TrendingUp className="w-6 h-6 text-purple-700"/></div></CardContent></Card>
-      </div>
-
-      {/* Leaderboard + Badges */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <Card className="rounded-2xl">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Trophy className="w-5 h-5"/> Student Leaderboard</CardTitle>
-              <CardDescription>Rankings based on XP and achievements</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="inline-flex bg-muted/50 rounded-lg p-1 mb-4">
-                <button onClick={()=>setXpTab('all')} className={`px-4 py-2 rounded-md text-sm ${xpTab==='all'?'bg-white shadow':''}`}>All Time</button>
-                <button onClick={()=>setXpTab('week')} className={`px-4 py-2 rounded-md text-sm ${xpTab==='week'?'bg-white shadow':''}`}>This Week</button>
-                <button onClick={()=>setXpTab('month')} className={`px-4 py-2 rounded-md text-sm ${xpTab==='month'?'bg-white shadow':''}`}>This Month</button>
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Rank</TableHead>
-                    <TableHead>Student</TableHead>
-                    <TableHead>XP</TableHead>
-                    <TableHead>Quizzes</TableHead>
-                    <TableHead>Certificates</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {leaderboard.map(row => (
-                    <TableRow key={row.rank}>
-                      <TableCell>
-                        {row.rank === 1 ? '🥇' : row.rank === 2 ? '🥈' : row.rank === 3 ? '🥉' : row.rank}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar className="w-8 h-8"><AvatarFallback>{row.initials}</AvatarFallback></Avatar>
-                          <div>
-                            <div className="font-medium">{row.name}</div>
-                            <div className="text-xs text-muted-foreground">+{row.delta} this week</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{row.xp.toLocaleString()}</TableCell>
-                      <TableCell>{row.quizzes}</TableCell>
-                      <TableCell>{row.certs}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </div>
-        <div>
-          <Card className="rounded-2xl">
-            <CardHeader>
-              <CardTitle>Achievement Badges</CardTitle>
-              <CardDescription>Student milestones and accomplishments</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {badges.map((b, i) => (
-                <div key={i} className="rounded-xl border p-4 flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{b.title}</div>
-                    <div className="text-xs text-muted-foreground">{b.desc}</div>
-                  </div>
-                  <Badge variant="secondary" className="rounded-full">{b.count} students</Badge>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
       </div>
     </div>
   );
@@ -665,138 +427,21 @@ export default function Admin() {
   const renderClassSpace = () => (
     <div className="space-y-6">
       {/* Top toolbar */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Class Space</h2>
-          <p className="text-sm text-muted-foreground">Manage your classes and schedule sessions</p>
-        </div>
-        <Button className="h-12 rounded-xl">
-          <Plus className="w-4 h-4 mr-2" /> Create New Class
-        </Button>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="rounded-2xl">
-          <CardContent className="p-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Classes</p>
-              <p className="text-3xl font-bold">{classesData.length}</p>
-            </div>
-            <div className="p-3 bg-blue-100 rounded-full">
-              <BookOpen className="w-6 h-6 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl">
-          <CardContent className="p-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Total Students</p>
-              <p className="text-3xl font-bold">{classesData.reduce((a,c)=>a+c.students,0)}</p>
-            </div>
-            <div className="p-3 bg-green-100 rounded-full">
-              <Users className="w-6 h-6 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl">
-          <CardContent className="p-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Live Classes</p>
-              <p className="text-3xl font-bold">2</p>
-            </div>
-            <div className="p-3 bg-purple-100 rounded-full">
-              <Video className="w-6 h-6 text-purple-600" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="rounded-2xl">
-          <CardContent className="p-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-muted-foreground">Today's Sessions</p>
-              <p className="text-3xl font-bold">1</p>
-            </div>
-            <div className="p-3 bg-orange-100 rounded-full">
-              <Clock className="w-6 h-6 text-orange-600" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Main content: All Classes + Upcoming Sessions */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-4">
-          <Card className="rounded-2xl">
-            <CardHeader>
-              <CardTitle>All Classes</CardTitle>
-              <CardDescription>Manage your class schedule and enrollment</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {classesData.map(c => (
-                <div key={c.id} className="border rounded-xl p-4 flex items-start justify-between">
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold">{c.title}</h3>
-                      <Badge className="bg-emerald-100 text-emerald-700">Active</Badge>
-                    </div>
-                    <div className="text-sm text-muted-foreground">{c.teacher}</div>
-                    <div className="text-sm flex items-center gap-2 text-muted-foreground">
-                      <Calendar className="w-4 h-4" /> {c.schedule}
-                    </div>
-                    <div className="text-sm text-muted-foreground">{c.students} students • Next: {c.next}</div>
-                  </div>
-                  <Button variant="outline">Manage</Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="space-y-4">
-          <Card className="rounded-2xl">
-            <CardHeader>
-              <CardTitle>Upcoming Sessions</CardTitle>
-              <CardDescription>Next sessions this week</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {sessionsData.map(s => (
-                <div key={s.id} className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{s.title}</div>
-                    <div className="text-xs text-muted-foreground">{s.teacher}</div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <Badge variant="secondary" className="rounded-full">{s.tag}</Badge>
-                    <div className="text-sm flex items-center gap-2 text-muted-foreground">
-                      <Clock className="w-4 h-4" /> {s.time}
-                    </div>
-                    <div className="text-sm flex items-center gap-2 text-muted-foreground">
-                      <Users className="w-4 h-4" /> {s.attendees}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
-  );
-
-  const renderQuizManager = () => (
-    <div className="space-y-6">
-      {/* Top toolbar */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-        <div className="flex-1 relative">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search quizzes..."
-            value={query}
-            onChange={(e)=>setQuery(e.target.value)}
-            className="pl-10 h-12 rounded-xl"
-          />
+        <div>
+          <h2 className="text-2xl font-bold">Class Space - Quiz Management</h2>
+          <p className="text-sm text-muted-foreground">Manage quizzes for your classes and students</p>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex-1 relative">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search quizzes..."
+              value={query}
+              onChange={(e)=>setQuery(e.target.value)}
+              className="pl-10 h-12 rounded-xl"
+            />
+          </div>
           <Button variant="outline" className="h-12 rounded-xl">
             <Filter className="w-4 h-4 mr-2" /> Filters
           </Button>
@@ -812,7 +457,7 @@ export default function Admin() {
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total Quizzes</p>
-              <p className="text-3xl font-bold">{quizzes.length}</p>
+              <p className="text-3xl font-bold">{allQuizzes.length}</p>
             </div>
             <div className="p-3 bg-blue-100 rounded-full">
               <FileText className="w-6 h-6 text-blue-600" />
@@ -823,7 +468,7 @@ export default function Admin() {
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Active Quizzes</p>
-              <p className="text-3xl font-bold">{quizzes.filter(q=>q.status==='active').length}</p>
+              <p className="text-3xl font-bold">{allQuizzes.filter(q => q.status === 'active').length}</p>
             </div>
             <div className="p-3 bg-green-100 rounded-full">
               <Users className="w-6 h-6 text-green-600" />
@@ -834,7 +479,7 @@ export default function Admin() {
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Total Attempts</p>
-              <p className="text-3xl font-bold">{quizzes.reduce((a,q)=>a+q.attempts,0)}</p>
+              <p className="text-3xl font-bold">{allQuizzes.reduce((a,c)=>a+c.attempts,0)}</p>
             </div>
             <div className="p-3 bg-purple-100 rounded-full">
               <Trophy className="w-6 h-6 text-purple-600" />
@@ -845,16 +490,16 @@ export default function Admin() {
           <CardContent className="p-6 flex items-center justify-between">
             <div>
               <p className="text-sm text-muted-foreground">Draft Quizzes</p>
-              <p className="text-3xl font-bold">{quizzes.filter(q=>q.status==='draft').length}</p>
+              <p className="text-3xl font-bold">{allQuizzes.filter(q => q.status === 'draft').length}</p>
             </div>
             <div className="p-3 bg-orange-100 rounded-full">
-              <Award className="w-6 h-6 text-orange-600" />
+              <BookOpen className="w-6 h-6 text-orange-600" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* All Quizzes Table */}
+      {/* Quiz Table */}
       <Card className="rounded-2xl">
         <CardHeader>
           <CardTitle>All Quizzes</CardTitle>
@@ -870,42 +515,100 @@ export default function Admin() {
                 <TableHead>Attempts</TableHead>
                 <TableHead>Difficulty</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="w-10"></TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {quizzes
-                .filter(q=>q.title.toLowerCase().includes(query.toLowerCase()))
-                .map((q)=> (
-                <TableRow key={q.id}>
+              {allQuizzes.map((quiz) => (
+                <TableRow key={quiz.id}>
                   <TableCell>
-                    <div className="font-medium">{q.title}</div>
-                    <div className="text-xs text-muted-foreground">Created {q.createdAt}</div>
+                    <div>
+                      <div className="font-medium">{quiz.title}</div>
+                      <div className="text-sm text-muted-foreground">Created: {quiz.createdAt}</div>
+                    </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="rounded-full">{q.category}</Badge>
+                    <Badge variant="secondary" className="bg-green-100 text-green-700">
+                      {quiz.category}
+                    </Badge>
                   </TableCell>
-                  <TableCell>{q.questions} questions</TableCell>
-                  <TableCell>{q.attempts} attempts</TableCell>
+                  <TableCell>{quiz.questions} questions</TableCell>
+                  <TableCell>{quiz.attempts} attempts</TableCell>
                   <TableCell>
-                    <Badge className={q.difficulty==='hard' ? 'bg-red-100 text-red-700' : q.difficulty==='medium' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}>
-                      {q.difficulty.charAt(0).toUpperCase()+q.difficulty.slice(1)}
+                    <Badge variant={
+                      quiz.difficulty === 'easy' ? 'default' : 
+                      quiz.difficulty === 'medium' ? 'secondary' : 
+                      'destructive'
+                    } className={
+                      quiz.difficulty === 'easy' ? 'bg-green-100 text-green-700' : 
+                      quiz.difficulty === 'medium' ? 'bg-blue-100 text-blue-700' : 
+                      'bg-red-100 text-red-700'
+                    }>
+                      {quiz.difficulty.charAt(0).toUpperCase() + quiz.difficulty.slice(1)}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <Badge className={q.status==='active' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-700'}>
-                      {q.status.charAt(0).toUpperCase()+q.status.slice(1)}
+                    <Badge variant={quiz.status === 'active' ? 'default' : 'secondary'} className={
+                      quiz.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'
+                    }>
+                      {quiz.status.charAt(0).toUpperCase() + quiz.status.slice(1)}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon"><MoreHorizontal className="w-4 h-4" /></Button>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={()=>{ setShowCreateForm(true); setTitle(q.title); }}>Edit</DropdownMenuItem>
-                        <DropdownMenuItem>Duplicate</DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600">Delete</DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <Eye className="mr-2 h-4 w-4" />
+                          View Details
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => {
+                            // Navigate to quiz taking interface for users
+                            alert(`Starting quiz: ${quiz.title}\nThis would open the quiz interface for students to take the quiz.`);
+                          }}
+                          className="text-green-600 hover:text-green-700"
+                        >
+                          <Play className="mr-2 h-4 w-4" />
+                          Take Quiz (Student View)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <Edit className="mr-2 h-4 w-4" />
+                          Edit Quiz
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <Users className="mr-2 h-4 w-4" />
+                          View Attempts
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <Download className="mr-2 h-4 w-4" />
+                          Export Results
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => {
+                            const newStatus = quiz.status === 'active' ? 'draft' : 'active';
+                            setAllQuizzes(prev => prev.map(q => 
+                              q.id === quiz.id ? { ...q, status: newStatus } : q
+                            ));
+                          }}
+                          className={quiz.status === 'active' ? 'text-orange-600 hover:text-orange-700' : 'text-green-600 hover:text-green-700'}
+                        >
+                          {quiz.status === 'active' ? (
+                            <>
+                              <Pause className="mr-2 h-4 w-4" />
+                              Deactivate Quiz
+                            </>
+                          ) : (
+                            <>
+                              <Play className="mr-2 h-4 w-4" />
+                              Activate Quiz
+                            </>
+                          )}
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -916,53 +619,132 @@ export default function Admin() {
         </CardContent>
       </Card>
 
-      {/* Create form panel */}
+      {/* Student Access Section */}
+      <Card className="rounded-2xl">
+        <CardHeader>
+          <CardTitle>Student Access</CardTitle>
+          <CardDescription>How students can access and take quizzes</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-blue-100 rounded-full">
+                  <Users className="w-5 h-5 text-blue-600" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-blue-900">Active Quizzes Available</h4>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Students can access and take quizzes that are marked as "Active" status. 
+                    Draft quizzes are only visible to admins.
+                  </p>
+                  <div className="mt-3 flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                      <span className="text-sm text-blue-700">Active: {allQuizzes.filter(q => q.status === 'active').length} quizzes</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 bg-gray-400 rounded-full"></div>
+                      <span className="text-sm text-blue-700">Draft: {allQuizzes.filter(q => q.status === 'draft').length} quizzes</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-green-100 rounded-full">
+                  <Play className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-green-900">Quiz Taking Process</h4>
+                  <p className="text-sm text-green-700 mt-1">
+                    Students can take quizzes by clicking "Take Quiz" in the actions menu. 
+                    This opens the quiz interface where they can answer questions and submit their responses.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-purple-100 rounded-full">
+                  <BarChart3 className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-purple-900">Progress Tracking</h4>
+                  <p className="text-sm text-purple-700 mt-1">
+                    All quiz attempts are tracked and can be viewed in the "View Attempts" section. 
+                    Admins can export results and monitor student progress.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Create Quiz Form Modal */}
       {showCreateForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Create Quiz</CardTitle>
-            <CardDescription>Define metadata and add questions</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <Card className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>Create New Quiz</CardTitle>
+                <Button variant="ghost" onClick={() => setShowCreateForm(false)}>
+                  ✕
+                </Button>
+              </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium">Title</label>
+
+                  <label className="text-sm font-medium">Title</label>
               <Input value={title} onChange={e=>setTitle(e.target.value)} />
             </div>
             <div>
-              <label className="text-sm font-medium">Category</label>
+
+                  <label className="text-sm font-medium">Category</label>
               <Input value={category} onChange={e=>setCategory(e.target.value)} />
             </div>
             <div>
-              <label className="text-sm font-medium">Difficulty</label>
+
+                  <label className="text-sm font-medium">Difficulty</label>
               <select className="border rounded px-3 py-2 w-full" value={difficulty} onChange={e=>setDifficulty(e.target.value as any)}>
-                <option value="easy">Easy</option>
-                <option value="medium">Medium</option>
-                <option value="hard">Hard</option>
+
+                    <option value="easy">Easy</option>
+                    <option value="medium">Medium</option>
+                    <option value="hard">Hard</option>
               </select>
             </div>
             <div>
-              <label className="text-sm font-medium">Time Limit (mins)</label>
+
+                  <label className="text-sm font-medium">Time Limit (mins)</label>
               <Input type="number" value={timeLimit} onChange={e=>setTimeLimit(parseInt(e.target.value||'0',10))} />
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium">Description</label>
+
+                <label className="text-sm font-medium">Description</label>
             <Textarea value={description} onChange={e=>setDescription(e.target.value)} />
           </div>
 
           <div className="flex items-center justify-between">
             <h3 className="font-semibold">Questions ({questions.length}) • Total Points: {totalPoints}</h3>
-            <Button onClick={addQuestion} size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Question
-            </Button>
+
+                <Button onClick={addQuestion} size="sm">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Question
+                </Button>
           </div>
 
           <div className="space-y-4">
             {questions.map((q, i) => (
-              <Card key={i} className="p-4">
-                <div className="space-y-3">
+
+                  <Card key={i} className="p-4">
+                    <div className="space-y-3">
                   <Input placeholder="Question" value={q.question} onChange={e=>updateQuestion(i,{question:e.target.value})} />
                   <div className="grid grid-cols-2 gap-2">
                     {q.options.map((opt, oi) => (
@@ -975,16 +757,18 @@ export default function Admin() {
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <select className="border rounded px-3 py-2" value={q.correctAnswer} onChange={e=>updateQuestion(i,{correctAnswer: parseInt(e.target.value,10)})}>
-                      <option value={0}>Correct: Option 1</option>
-                      <option value={1}>Correct: Option 2</option>
-                      <option value={2}>Correct: Option 3</option>
-                      <option value={3}>Correct: Option 4</option>
+
+                          <option value={0}>Correct: Option 1</option>
+                          <option value={1}>Correct: Option 2</option>
+                          <option value={2}>Correct: Option 3</option>
+                          <option value={3}>Correct: Option 4</option>
                     </select>
                     <Input type="number" placeholder="Points" value={q.points} onChange={e=>updateQuestion(i,{points: parseInt(e.target.value||'0',10)})} />
                     <select className="border rounded px-3 py-2" value={q.difficulty} onChange={e=>updateQuestion(i,{difficulty: e.target.value as any})}>
-                      <option value="easy">Easy</option>
-                      <option value="medium">Medium</option>
-                      <option value="hard">Hard</option>
+
+                          <option value="easy">Easy</option>
+                          <option value="medium">Medium</option>
+                          <option value="hard">Hard</option>
                     </select>
                   </div>
                   <Textarea placeholder="Explanation" value={q.explanation} onChange={e=>updateQuestion(i,{explanation:e.target.value})} />
@@ -997,7 +781,7 @@ export default function Admin() {
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                         body: JSON.stringify({ quizId: 'DRAFT', questionIndex: i, approved: true })
                       });
-                      alert('Question approved successfully!');
+                      alert('Marked approved (wire real quizId after create)');
                     }}>Approve</Button>
                     <Button variant="destructive" size="sm" onClick={()=>setQuestions(prev=>prev.filter((_,idx)=>idx!==i))}>Remove</Button>
                   </div>
@@ -1007,17 +791,265 @@ export default function Admin() {
           </div>
 
           <div className="flex gap-3">
-            <Button onClick={submitQuiz} disabled={loading}>
-              {loading ? 'Saving...' : 'Save Quiz'}
-            </Button>
+            <Button onClick={submitQuiz} disabled={loading}>{loading ? 'Saving...' : 'Save Quiz'}</Button>
             <Button variant="outline" onClick={exportCsv}>Export CSV</Button>
-            <Button variant="outline" onClick={connectionTest}>Test Connection</Button>
-            <Button variant="ghost" onClick={()=>setShowCreateForm(false)}>Close</Button>
+            <Button variant="outline" onClick={connectionTest}>Test Firestore</Button>
           </div>
           <div className="text-xs text-muted-foreground mt-2">Project: { (app.options as any).projectId || 'unknown' }</div>
         </CardContent>
+      </Card>
+
         </Card>
       )}
+    </div>
+  );
+
+  const renderQuizManager = () => (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold">Create New Quiz</h2>
+          <p className="text-sm text-muted-foreground">Build and customize quizzes for your students</p>
+        </div>
+        <Button onClick={() => setActiveTab('classes')} variant="outline">
+          <Eye className="w-4 h-4 mr-2" />
+          View Created Quizzes
+        </Button>
+      </div>
+
+      {/* Quiz Creation Form */}
+      <Card className="rounded-2xl">
+        <CardHeader>
+          <CardTitle>Quiz Details</CardTitle>
+          <CardDescription>Define the basic information for your quiz</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="text-sm font-medium">Quiz Title</label>
+              <Input 
+                value={title} 
+                onChange={e=>setTitle(e.target.value)} 
+                placeholder="Enter quiz title..."
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Category</label>
+              <Input 
+                value={category} 
+                onChange={e=>setCategory(e.target.value)} 
+                placeholder="e.g., Environment, Science..."
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Difficulty Level</label>
+              <select 
+                className="border rounded px-3 py-2 w-full mt-1" 
+                value={difficulty} 
+                onChange={e=>setDifficulty(e.target.value as any)}
+              >
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Time Limit (minutes)</label>
+              <Input 
+                type="number" 
+                value={timeLimit} 
+                onChange={e=>setTimeLimit(parseInt(e.target.value||'0',10))} 
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-medium">Description</label>
+            <Textarea 
+              value={description} 
+              onChange={e=>setDescription(e.target.value)} 
+              placeholder="Describe what this quiz covers..."
+              className="mt-1"
+              rows={3}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Questions Section */}
+      <Card className="rounded-2xl">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Questions</CardTitle>
+              <CardDescription>Add questions to your quiz ({questions.length} questions • {totalPoints} points)</CardDescription>
+            </div>
+            <Button onClick={addQuestion} className="h-10">
+              <Plus className="w-4 h-4 mr-2" />
+              Add Question
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {questions.length === 0 ? (
+            <div className="text-center py-8">
+              <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium mb-2">No questions yet</h3>
+              <p className="text-muted-foreground mb-4">Start building your quiz by adding questions</p>
+              <Button onClick={addQuestion}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add First Question
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {questions.map((q, i) => (
+                <Card key={i} className="p-4 border-l-4 border-l-blue-500">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-medium">Question {i + 1}</h4>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={()=>setQuestions(prev=>prev.filter((_,idx)=>idx!==i))}
+                        className="text-red-600 hover:text-red-700"
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                    
+                    <Input 
+                      placeholder="Enter your question..." 
+                      value={q.question} 
+                      onChange={e=>updateQuestion(i,{question:e.target.value})} 
+                    />
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      {q.options.map((opt, oi) => (
+                        <div key={oi} className="flex items-center gap-2">
+                          <span className="text-sm font-medium w-6">{oi + 1}.</span>
+                          <Input 
+                            placeholder={`Option ${oi+1}`} 
+                            value={opt} 
+                            onChange={e=>{
+                              const copy = [...q.options] as [string,string,string,string];
+                              copy[oi] = e.target.value;
+                              updateQuestion(i,{ options: copy });
+                            }} 
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="text-xs text-muted-foreground">Correct Answer</label>
+                        <select 
+                          className="border rounded px-3 py-2 w-full" 
+                          value={q.correctAnswer} 
+                          onChange={e=>updateQuestion(i,{correctAnswer: parseInt(e.target.value,10)})}
+                        >
+                          <option value={0}>Option 1</option>
+                          <option value={1}>Option 2</option>
+                          <option value={2}>Option 3</option>
+                          <option value={3}>Option 4</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Points</label>
+                        <Input 
+                          type="number" 
+                          placeholder="Points" 
+                          value={q.points} 
+                          onChange={e=>updateQuestion(i,{points: parseInt(e.target.value||'0',10)})} 
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-muted-foreground">Difficulty</label>
+                        <select 
+                          className="border rounded px-3 py-2 w-full" 
+                          value={q.difficulty} 
+                          onChange={e=>updateQuestion(i,{difficulty: e.target.value as any})}
+                        >
+                          <option value="easy">Easy</option>
+                          <option value="medium">Medium</option>
+                          <option value="hard">Hard</option>
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <Textarea 
+                      placeholder="Explanation (optional)" 
+                      value={q.explanation} 
+                      onChange={e=>updateQuestion(i,{explanation:e.target.value})} 
+                      rows={2}
+                    />
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Actions */}
+      <Card className="rounded-2xl">
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row gap-3 justify-between items-center">
+            <div className="text-sm text-muted-foreground">
+              <p><strong>Total Questions:</strong> {questions.length}</p>
+              <p><strong>Total Points:</strong> {totalPoints}</p>
+              <p><strong>Estimated Time:</strong> {timeLimit} minutes</p>
+            </div>
+            <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                onClick={connectionTest}
+                disabled={loading}
+              >
+                Test Connection
+              </Button>
+              <Button 
+                onClick={submitQuiz} 
+                disabled={loading || !title || questions.length === 0}
+                className="min-w-32"
+              >
+                {loading ? 'Creating...' : 'Create Quiz'}
+              </Button>
+            </div>
+          </div>
+          {!title && (
+            <p className="text-sm text-red-600 mt-2">Please enter a quiz title</p>
+          )}
+          {questions.length === 0 && title && (
+            <p className="text-sm text-red-600 mt-2">Please add at least one question</p>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  const renderXPLeaderboard = () => (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">XP & Leaderboard</h2>
+      <p className="text-muted-foreground">XP tracking and leaderboard features coming soon...</p>
+    </div>
+  );
+
+  const renderCertifications = () => (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">Certifications</h2>
+      <p className="text-muted-foreground">Certificate management features coming soon...</p>
+    </div>
+  );
+
+  const renderSettings = () => (
+    <div className="space-y-6">
+      <h2 className="text-2xl font-bold">Settings</h2>
+      <p className="text-muted-foreground">System settings and configuration coming soon...</p>
     </div>
   );
 
@@ -1155,3 +1187,4 @@ export default function Admin() {
     </div>
   );
 }
+
