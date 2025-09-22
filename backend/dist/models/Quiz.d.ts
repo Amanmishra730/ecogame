@@ -18,7 +18,6 @@ export interface IQuiz extends Document {
     totalPoints: number;
     timeLimit: number;
     isActive: boolean;
-    createdBy: string;
     createdAt: Date;
     updatedAt: Date;
 }

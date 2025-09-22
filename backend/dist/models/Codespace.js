@@ -34,90 +34,33 @@ var __importStar = (this && this.__importStar) || (function () {
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
 const mongoose_1 = __importStar(require("mongoose"));
-const QuizQuestionSchema = new mongoose_1.Schema({
-    question: {
+const CodespaceSchema = new mongoose_1.Schema({
+    code: {
         type: String,
         required: true,
-        trim: true
+        unique: true,
+        index: true,
     },
-    options: [{
-            type: String,
-            required: true,
-            trim: true
-        }],
-    correctAnswer: {
-        type: Number,
-        required: true,
-        min: 0,
-        max: 3
-    },
-    explanation: {
+    adminUserId: {
         type: String,
         required: true,
-        trim: true
+        index: true,
     },
-    category: {
+    quizId: {
         type: String,
-        required: true,
-        enum: ['environment', 'recycling', 'water', 'energy', 'biodiversity', 'climate']
     },
-    difficulty: {
-        type: String,
-        required: true,
-        enum: ['easy', 'medium', 'hard']
-    },
-    points: {
-        type: Number,
-        required: true,
-        min: 1,
-        max: 100
-    },
-    approved: {
+    active: {
         type: Boolean,
-        default: false
-    }
-});
-const QuizSchema = new mongoose_1.Schema({
-    title: {
-        type: String,
-        required: true,
-        trim: true
+        default: true,
+        index: true,
     },
-    description: {
-        type: String,
+    expiresAt: {
+        type: Date,
         required: true,
-        trim: true
+        index: { expires: '0s' }, // TTL handled by MongoDB when expiresAt < now
     },
-    category: {
-        type: String,
-        required: true,
-        enum: ['environment', 'recycling', 'water', 'energy', 'biodiversity', 'climate']
-    },
-    difficulty: {
-        type: String,
-        required: true,
-        enum: ['easy', 'medium', 'hard']
-    },
-    questions: [QuizQuestionSchema],
-    totalPoints: {
-        type: Number,
-        required: true,
-        min: 1
-    },
-    timeLimit: {
-        type: Number,
-        required: true,
-        min: 1,
-        max: 60
-    },
-    isActive: {
-        type: Boolean,
-        default: true
-    }
 }, {
-    timestamps: true
+    timestamps: true,
 });
-// Index for efficient querying
-QuizSchema.index({ category: 1, difficulty: 1, isActive: 1 });
-exports.default = mongoose_1.default.model('Quiz', QuizSchema);
-//# sourceMappingURL=Quiz.js.map
+exports.default = mongoose_1.default.model('Codespace', CodespaceSchema);
+//# sourceMappingURL=Codespace.js.map

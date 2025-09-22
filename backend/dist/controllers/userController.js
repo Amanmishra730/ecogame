@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteAdminAccount = exports.getLeaderboard = exports.updateUserStats = exports.createOrUpdateUser = exports.getUserProfile = void 0;
+exports.getLeaderboard = exports.updateUserStats = exports.createOrUpdateUser = exports.getUserProfile = void 0;
 const User_1 = __importDefault(require("../models/User"));
 const getUserProfile = async (req, res) => {
     try {
@@ -144,42 +144,4 @@ const getLeaderboard = async (req, res) => {
     }
 };
 exports.getLeaderboard = getLeaderboard;
-const deleteAdminAccount = async (req, res) => {
-    try {
-        const firebaseUid = req.user?.uid;
-        if (!firebaseUid) {
-            res.status(400).json({ error: 'User ID is required' });
-            return;
-        }
-        // Check if user is admin
-        const allowed = (process.env.ADMIN_UIDS || '').split(',').map(s => s.trim()).filter(Boolean);
-        if (!allowed.includes(firebaseUid)) {
-            res.status(403).json({ error: 'Only admins can delete their accounts' });
-            return;
-        }
-        // Find the user
-        const user = await User_1.default.findOne({ firebaseUid });
-        if (!user) {
-            res.status(404).json({ error: 'User not found' });
-            return;
-        }
-        // Delete all quizzes created by this admin
-        const Quiz = require('../models/Quiz').default;
-        await Quiz.deleteMany({ createdBy: firebaseUid });
-        // Delete all quiz attempts by this user
-        const QuizAttempt = require('../models/QuizAttempt').default;
-        await QuizAttempt.deleteMany({ userId: firebaseUid });
-        // Delete the user account
-        await User_1.default.findByIdAndDelete(user._id);
-        res.json({
-            success: true,
-            message: 'Admin account and all associated data deleted successfully'
-        });
-    }
-    catch (error) {
-        console.error('Delete admin account error:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-};
-exports.deleteAdminAccount = deleteAdminAccount;
 //# sourceMappingURL=userController.js.map

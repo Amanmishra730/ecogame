@@ -15,6 +15,7 @@ const userRoutes_1 = __importDefault(require("./routes/userRoutes"));
 const quizRoutes_1 = __importDefault(require("./routes/quizRoutes"));
 const gameRoutes_1 = __importDefault(require("./routes/gameRoutes"));
 const aiRoutes_1 = __importDefault(require("./routes/aiRoutes"));
+const codespaceRoutes_1 = __importDefault(require("./routes/codespaceRoutes"));
 // Load environment variables
 dotenv_1.default.config();
 // Initialize Firebase Admin
@@ -45,6 +46,7 @@ app.use('/api/users', userRoutes_1.default);
 app.use('/api/quizzes', quizRoutes_1.default);
 app.use('/api/games', gameRoutes_1.default);
 app.use('/api/ai', aiRoutes_1.default);
+app.use('/api/codespaces', codespaceRoutes_1.default);
 // 404 handler
 app.use('*', (req, res) => {
     res.status(404).json({

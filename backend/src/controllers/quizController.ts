@@ -3,7 +3,9 @@ import Quiz from '../models/Quiz';
 import QuizAttempt from '../models/QuizAttempt';
 import User from '../models/User';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { Parser } from 'json2csv';
+// Workaround for missing types in dev: require json2csv directly
+// @ts-ignore
+const { Parser } = require('json2csv');
 
 export const getQuizzes = async (req: Request, res: Response): Promise<void> => {
   try {

@@ -10,6 +10,7 @@ import LoginForm from "./components/LoginForm";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Admin from "./pages/Admin";
+import Join from "./pages/Join";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { pwaService } from "./lib/pwaService";
 import { offlineStorageService } from "./lib/offlineStorageService";
@@ -83,6 +84,10 @@ const App = () => {
                         <Index />
                       </ProtectedRoute>
                     } 
+                  />
+                  <Route 
+                    path="/join" 
+                    element={<Join />} 
                   />
                   <Route 
                     path="/admin" 

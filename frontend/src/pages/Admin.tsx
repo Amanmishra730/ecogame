@@ -90,6 +90,21 @@ export default function Admin() {
   const [questions, setQuestions] = React.useState<QuizFormQuestion[]>([]);
   const [loading, setLoading] = React.useState(false);
 
+  // Codespace state
+  interface Codespace {
+    _id: string;
+    code: string;
+    adminUserId: string;
+    quizId?: string;
+    active: boolean;
+    expiresAt: string;
+    createdAt: string;
+    updatedAt: string;
+  }
+  const [codespace, setCodespace] = React.useState<Codespace | null>(null);
+  const [csLoading, setCsLoading] = React.useState(false);
+  const [csTtl, setCsTtl] = React.useState(120);
+
   const [showCreateForm, setShowCreateForm] = React.useState(false);
   const [query, setQuery] = React.useState("");
 
@@ -100,6 +115,67 @@ export default function Admin() {
     xpDistributed: 25680,
     certificatesIssued: 89
   };
+
+  // Codespace helpers
+  const fetchCodespace = async () => {
+    try {
+      setCsLoading(true);
+      const token = await getToken();
+      if (!token) return;
+      const res = await fetch(`/api/codespaces/current`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        setCodespace(null);
+        return;
+      }
+      const data = await res.json();
+      setCodespace(data);
+    } finally {
+      setCsLoading(false);
+    }
+  };
+
+  const createCodespace = async () => {
+    try {
+      setCsLoading(true);
+      const token = await getToken();
+      if (!token) { alert('Not authenticated.'); return; }
+      const res = await fetch(`/api/codespaces`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ ttlMinutes: csTtl }),
+      });
+      if (!res.ok) { const msg = await readError(res); alert(msg); return; }
+      const data = await res.json();
+      setCodespace(data);
+    } catch (e:any) {
+      alert(e.message);
+    } finally {
+      setCsLoading(false);
+    }
+  };
+
+  const deactivateCodespace = async () => {
+    try {
+      setCsLoading(true);
+      const token = await getToken();
+      if (!token) { alert('Not authenticated.'); return; }
+      const res = await fetch(`/api/codespaces/deactivate`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) { const msg = await readError(res); alert(msg); return; }
+      setCodespace(null);
+    } finally {
+      setCsLoading(false);
+    }
+  };
+
+  React.useEffect(() => { fetchCodespace(); }, []);
 
   const recentActivity = [
     { name: "Sarah Johnson", action: "completed Nature Quiz", time: "2 hours ago", avatar: "SJ" },
@@ -144,6 +220,19 @@ export default function Admin() {
   const [notifyClassReminders, setNotifyClassReminders] = useState(true);
   const [notifyCertRequests, setNotifyCertRequests] = useState(false);
   const [notifyWeeklyReports, setNotifyWeeklyReports] = useState(true);
+
+  // Security settings state
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [twoFactor, setTwoFactor] = useState(false);
+
+  // Platform settings state
+  const [platformName, setPlatformName] = useState('EduAdmin Learning Platform');
+  const [defaultXPPerQuiz, setDefaultXPPerQuiz] = useState<number>(100);
+  const [certValidityMonths, setCertValidityMonths] = useState<number>(12);
+  const [autoIssueCertificates, setAutoIssueCertificates] = useState(true);
+  const [publicLeaderboard, setPublicLeaderboard] = useState(true);
 
   // Mock data for Certifications
   const certStats = { totalIssued: 3, delivered: 2, templates: 4, thisMonth: 12 } as const;
@@ -498,6 +587,57 @@ To make it available to students:
           </CardContent>
         </Card>
       </div>
+
+      {/* Codespace Access */}
+      <Card className="rounded-2xl">
+        <CardHeader>
+          <CardTitle>Codespace Access</CardTitle>
+          <CardDescription>Generate a unique code students can enter to join your quiz session</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">TTL (minutes)</label>
+                <Input type="number" className="w-28" value={csTtl} onChange={(e)=>setCsTtl(parseInt(e.target.value||'0',10))} />
+              </div>
+              <Button onClick={createCodespace} disabled={csLoading}>
+                {csLoading ? 'Generating...' : 'Generate Codespace'}
+              </Button>
+              {codespace && (
+                <Button variant="outline" onClick={deactivateCodespace} disabled={csLoading}>
+                  Deactivate
+                </Button>
+              )}
+            </div>
+            {codespace ? (
+              <div className="flex flex-wrap items-center gap-4 p-4 border rounded-xl bg-muted/30">
+                <div>
+                  <div className="text-sm text-muted-foreground">Active Code</div>
+                  <div className="text-3xl font-bold tracking-widest">{codespace.code}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-muted-foreground">Expires At</div>
+                  <div className="font-medium">{new Date(codespace.expiresAt).toLocaleString()}</div>
+                </div>
+                <div className="ml-auto flex gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      navigator.clipboard.writeText(codespace.code);
+                      alert('Codespace code copied!');
+                    }}
+                  >
+                    Copy Code
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">No active codespace. Generate a new code for your class to join.</div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Quiz Table */}
       <Card className="rounded-2xl">
@@ -1034,22 +1174,501 @@ To make it available to students:
 
   const renderXPLeaderboard = () => (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">XP & Leaderboard</h2>
-      <p className="text-muted-foreground">XP tracking and leaderboard features coming soon...</p>
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">XP & Leaderboard</h2>
+          <p className="text-sm text-muted-foreground mt-1">Track student progress and engagement</p>
+        </div>
+        <Button variant="outline" className="rounded-lg">
+          <Trophy className="w-4 h-4 mr-2" />
+          Manage XP Rules
+        </Button>
+      </div>
+
+      {/* Stat Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="rounded-xl">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total XP Distributed</p>
+              <p className="text-3xl font-bold mt-1">{xpStats.totalXP.toLocaleString()}</p>
+            </div>
+            <div className="p-3 rounded-full bg-yellow-100">
+              <Trophy className="w-6 h-6 text-yellow-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-xl">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Active Students</p>
+              <p className="text-3xl font-bold mt-1">{xpStats.activeStudents}</p>
+            </div>
+            <div className="p-3 rounded-full bg-blue-100">
+              <Users className="w-6 h-6 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-xl">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Certificates Earned</p>
+              <p className="text-3xl font-bold mt-1">{xpStats.certificates}</p>
+            </div>
+            <div className="p-3 rounded-full bg-green-100">
+              <Award className="w-6 h-6 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-xl">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Avg Weekly XP</p>
+              <p className="text-3xl font-bold mt-1">{xpStats.avgWeeklyXP}</p>
+            </div>
+            <div className="p-3 rounded-full bg-purple-100">
+              <TrendingUp className="w-6 h-6 text-purple-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Leaderboard */}
+        <Card className="lg:col-span-2 rounded-xl">
+          <CardHeader className="pb-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Trophy className="w-5 h-5 text-purple-600" />
+                  Student Leaderboard
+                </CardTitle>
+                <CardDescription>Rankings based on XP and achievements</CardDescription>
+              </div>
+              <div className="bg-muted rounded-full text-xs px-2 py-1 text-muted-foreground hidden sm:block">All Time</div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {/* Tabs */}
+            <div className="mb-4">
+              <div className="inline-flex bg-muted rounded-md p-1">
+                <button
+                  onClick={() => setXpTab('all')}
+                  className={`px-4 py-2 text-sm rounded-md transition ${xpTab === 'all' ? 'bg-white shadow text-foreground' : 'text-muted-foreground'}`}
+                >
+                  All Time
+                </button>
+                <button
+                  onClick={() => setXpTab('week')}
+                  className={`px-4 py-2 text-sm rounded-md transition ${xpTab === 'week' ? 'bg-white shadow text-foreground' : 'text-muted-foreground'}`}
+                >
+                  This Week
+                </button>
+                <button
+                  onClick={() => setXpTab('month')}
+                  className={`px-4 py-2 text-sm rounded-md transition ${xpTab === 'month' ? 'bg-white shadow text-foreground' : 'text-muted-foreground'}`}
+                >
+                  This Month
+                </button>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-20">Rank</TableHead>
+                    <TableHead>Student</TableHead>
+                    <TableHead>XP</TableHead>
+                    <TableHead>Quizzes</TableHead>
+                    <TableHead>Certificates</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {leaderboard.map((row) => (
+                    <TableRow key={row.rank}>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {row.rank === 1 ? (
+                            <span className="text-yellow-500">🥇</span>
+                          ) : row.rank === 2 ? (
+                            <span className="text-gray-400">🥈</span>
+                          ) : row.rank === 3 ? (
+                            <span className="text-amber-700">🥉</span>
+                          ) : (
+                            <span className="text-muted-foreground">#{row.rank}</span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-primary/10 text-primary font-semibold">{row.initials}</AvatarFallback>
+                          </Avatar>
+                          <div className="font-medium">{row.name}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span className="font-semibold">{row.xp.toLocaleString()}</span>
+                          <span className="text-xs text-green-600">+{Math.abs(row.delta)} this week</span>
+                        </div>
+                      </TableCell>
+                      <TableCell>{row.quizzes}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          <span className="flex items-center gap-1">
+                            <Award className="w-4 h-4 text-yellow-500" /> {row.certs}
+                          </span>
+                          <TrendingUp className="w-4 h-4 text-emerald-600" />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Achievement Badges */}
+        <Card className="rounded-xl">
+          <CardHeader>
+            <CardTitle>Achievement Badges</CardTitle>
+            <CardDescription>Student milestones and accomplishments</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {badges.map((b, idx) => (
+                <div key={idx} className="flex items-start gap-3 p-3 rounded-lg bg-muted/50">
+                  <div className="p-2 rounded-full bg-purple-100">
+                    <Award className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="font-medium">{b.title}</div>
+                    <div className="text-sm text-muted-foreground">{b.desc}</div>
+                    <div className="mt-2">
+                      <Badge variant="secondary" className="rounded-full">{b.count} students</Badge>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 
   const renderCertifications = () => (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Certifications</h2>
-      <p className="text-muted-foreground">Certificate management features coming soon...</p>
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-2xl font-bold">Certifications</h2>
+          <p className="text-sm text-muted-foreground mt-1">Issue and track student certificates</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" className="rounded-lg">
+            <Download className="w-4 h-4 mr-2" /> Export Report
+          </Button>
+          <Button className="rounded-lg">
+            <Award className="w-4 h-4 mr-2" /> Issue Certificate
+          </Button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="rounded-xl">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Issued</p>
+              <p className="text-3xl font-bold mt-1">{certStats.totalIssued}</p>
+            </div>
+            <div className="p-3 bg-purple-100 rounded-full">
+              <Award className="w-6 h-6 text-purple-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-xl">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Delivered</p>
+              <p className="text-3xl font-bold mt-1">{certStats.delivered}</p>
+            </div>
+            <div className="p-3 bg-green-100 rounded-full">
+              <Send className="w-6 h-6 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-xl">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Templates</p>
+              <p className="text-3xl font-bold mt-1">{certStats.templates}</p>
+            </div>
+            <div className="p-3 bg-blue-100 rounded-full">
+              <FileText className="w-6 h-6 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-xl">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Issued this Month</p>
+              <p className="text-3xl font-bold mt-1">{certStats.thisMonth}</p>
+            </div>
+            <div className="p-3 bg-amber-100 rounded-full">
+              <Calendar className="w-6 h-6 text-amber-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Body */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent certificates */}
+        <Card className="lg:col-span-2 rounded-xl">
+          <CardHeader>
+            <CardTitle>Recent Certificates</CardTitle>
+            <CardDescription>Latest certificates issued to students</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Student</TableHead>
+                    <TableHead>Course</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Template</TableHead>
+                    <TableHead className="text-right">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {recentCerts.map((c, i) => (
+                    <TableRow key={`${c.name}-${i}`}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="bg-primary/10 text-primary font-semibold">
+                              {c.name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="font-medium">{c.name}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{c.course}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Calendar className="w-4 h-4" />
+                          {c.date}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="bg-purple-100 text-purple-700">{c.template}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Badge variant={c.status === 'Delivered' ? 'default' : 'secondary'}
+                               className={c.status === 'Delivered' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}>
+                          {c.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Templates panel */}
+        <Card className="rounded-xl">
+          <CardHeader>
+            <CardTitle>Certificate Templates</CardTitle>
+            <CardDescription>Choose a design to issue a certificate</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {certTemplates.map((t, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                  <div>
+                    <div className="font-medium">{t.title}</div>
+                    <div className="text-sm text-muted-foreground">{t.type}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline"><Eye className="w-4 h-4 mr-2" /> Preview</Button>
+                    <Button size="sm"><Award className="w-4 h-4 mr-2" /> Use</Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 
   const renderSettings = () => (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold">Settings</h2>
-      <p className="text-muted-foreground">System settings and configuration coming soon...</p>
+      {/* Page Header */}
+      <div>
+        <h2 className="text-2xl font-bold">Settings</h2>
+        <p className="text-sm text-muted-foreground">Manage your platform preferences and configuration</p>
+      </div>
+
+      {/* Top row: Profile and Notifications */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Profile Settings */}
+        <Card className="rounded-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Profile Settings
+            </CardTitle>
+            <CardDescription>Update your personal information</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Full Name</label>
+                <Input className="mt-1" value={fullName} onChange={(e)=>setFullName(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Email</label>
+                <Input className="mt-1" value={email} onChange={(e)=>setEmail(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Bio</label>
+                <Textarea className="mt-1" placeholder="Tell us about yourself..." value={bio} onChange={(e)=>setBio(e.target.value)} />
+              </div>
+              <Button onClick={()=>alert('Profile saved')} className="bg-indigo-600 hover:bg-indigo-600/90">Save Changes</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Notifications */}
+        <Card className="rounded-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">Notifications</CardTitle>
+            <CardDescription>Configure your notification preferences</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">New Quiz Submissions</div>
+                  <div className="text-sm text-muted-foreground">Get notified when students submit quizzes</div>
+                </div>
+                <Switch checked={notifyNewQuiz} onCheckedChange={setNotifyNewQuiz} />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Class Reminders</div>
+                  <div className="text-sm text-muted-foreground">Receive reminders for upcoming classes</div>
+                </div>
+                <Switch checked={notifyClassReminders} onCheckedChange={setNotifyClassReminders} />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Certificate Requests</div>
+                  <div className="text-sm text-muted-foreground">Alert when students request certificates</div>
+                </div>
+                <Switch checked={notifyCertRequests} onCheckedChange={setNotifyCertRequests} />
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Weekly Reports</div>
+                  <div className="text-sm text-muted-foreground">Get weekly platform activity summaries</div>
+                </div>
+                <Switch checked={notifyWeeklyReports} onCheckedChange={setNotifyWeeklyReports} />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Bottom row: Security and Platform Settings */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Security */}
+        <Card className="rounded-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">Security</CardTitle>
+            <CardDescription>Manage your security preferences</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Current Password</label>
+                <Input className="mt-1" type="password" placeholder="Enter current password" value={currentPassword} onChange={(e)=>setCurrentPassword(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">New Password</label>
+                <Input className="mt-1" type="password" placeholder="Enter new password" value={newPassword} onChange={(e)=>setNewPassword(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Confirm Password</label>
+                <Input className="mt-1" type="password" placeholder="Confirm new password" value={confirmPassword} onChange={(e)=>setConfirmPassword(e.target.value)} />
+              </div>
+              <div className="pt-2 border-t">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-medium">Two-Factor Authentication</div>
+                    <div className="text-sm text-muted-foreground">Add an extra layer of security</div>
+                  </div>
+                  <Switch checked={twoFactor} onCheckedChange={setTwoFactor} />
+                </div>
+              </div>
+              <Button variant="outline" onClick={()=>alert('Password updated')}>Update Password</Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Platform Settings */}
+        <Card className="rounded-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">Platform Settings</CardTitle>
+            <CardDescription>Configure platform-wide settings</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">Platform Name</label>
+                <Input className="mt-1" value={platformName} onChange={(e)=>setPlatformName(e.target.value)} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Default XP per Quiz</label>
+                <Input className="mt-1" type="number" value={defaultXPPerQuiz} onChange={(e)=>setDefaultXPPerQuiz(parseInt(e.target.value||'0',10))} />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Certificate Validity (months)</label>
+                <Input className="mt-1" type="number" value={certValidityMonths} onChange={(e)=>setCertValidityMonths(parseInt(e.target.value||'0',10))} />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Auto-issue Certificates</div>
+                  <div className="text-sm text-muted-foreground">Automatically issue certificates on course completion</div>
+                </div>
+                <Switch checked={autoIssueCertificates} onCheckedChange={setAutoIssueCertificates} />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Public Leaderboard</div>
+                  <div className="text-sm text-muted-foreground">Show leaderboard to all students</div>
+                </div>
+                <Switch checked={publicLeaderboard} onCheckedChange={setPublicLeaderboard} />
+              </div>
+
+              <Button onClick={()=>alert('Platform settings saved')} className="bg-indigo-600 hover:bg-indigo-600/90">Save Platform Settings</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 

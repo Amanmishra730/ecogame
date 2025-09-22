@@ -11,6 +11,7 @@ import userRoutes from './routes/userRoutes';
 import quizRoutes from './routes/quizRoutes';
 import gameRoutes from './routes/gameRoutes';
 import aiRoutes from './routes/aiRoutes';
+import codespaceRoutes from './routes/codespaceRoutes';
 
 // Load environment variables
 dotenv.config();
@@ -48,6 +49,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/games', gameRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/codespaces', codespaceRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

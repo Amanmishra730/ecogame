@@ -14,8 +14,6 @@ router.get('/history/user', auth_1.authenticateToken, quizController_1.getUserQu
 // Admin routes
 router.post('/', auth_1.authenticateToken, admin_1.requireAdmin, quizController_1.createQuiz);
 router.put('/:id', auth_1.authenticateToken, admin_1.requireAdmin, quizController_1.updateQuiz);
-router.delete('/:id', auth_1.authenticateToken, admin_1.requireAdmin, quizController_1.deleteQuiz);
-router.get('/my-quizzes', auth_1.authenticateToken, admin_1.requireAdmin, quizController_1.getQuizzesByCreator);
 router.post('/approve', auth_1.authenticateToken, admin_1.requireAdmin, quizController_1.approveQuestion);
 router.get('/export/csv', auth_1.authenticateToken, admin_1.requireAdmin, quizController_1.exportQuizzesCsv);
 exports.default = router;

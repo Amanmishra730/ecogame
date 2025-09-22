@@ -3,7 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getUserQuizHistory = exports.submitQuizAttempt = exports.exportQuizzesCsv = exports.approveQuestion = exports.getQuizzesByCreator = exports.deleteQuiz = exports.updateQuiz = exports.createQuiz = exports.getQuizById = exports.getQuizzes = void 0;
+exports.getUserQuizHistory = exports.submitQuizAttempt = exports.exportQuizzesCsv = exports.approveQuestion = exports.updateQuiz = exports.createQuiz = exports.getQuizById = exports.getQuizzes = void 0;
 const Quiz_1 = __importDefault(require("../models/Quiz"));
 const QuizAttempt_1 = __importDefault(require("../models/QuizAttempt"));
 const User_1 = __importDefault(require("../models/User"));
@@ -54,16 +54,7 @@ exports.getQuizById = getQuizById;
 const createQuiz = async (req, res) => {
     try {
         const body = req.body;
-        const firebaseUid = req.user?.uid;
-        if (!firebaseUid) {
-            res.status(400).json({ error: 'User ID is required' });
-            return;
-        }
-        const quizData = {
-            ...body,
-            createdBy: firebaseUid
-        };
-        const quiz = await Quiz_1.default.create(quizData);
+        const quiz = await Quiz_1.default.create(body);
         res.status(201).json({ success: true, data: quiz });
     }
     catch (error) {
@@ -76,23 +67,12 @@ const updateQuiz = async (req, res) => {
     try {
         const { id } = req.params;
         const body = req.body;
-        const firebaseUid = req.user?.uid;
-        if (!firebaseUid) {
-            res.status(400).json({ error: 'User ID is required' });
-            return;
-        }
-        const quiz = await Quiz_1.default.findById(id);
+        const quiz = await Quiz_1.default.findByIdAndUpdate(id, body, { new: true });
         if (!quiz) {
             res.status(404).json({ error: 'Quiz not found' });
             return;
         }
-        // Check if the user is the creator of the quiz
-        if (quiz.createdBy !== firebaseUid) {
-            res.status(403).json({ error: 'You can only update quizzes you created' });
-            return;
-        }
-        const updatedQuiz = await Quiz_1.default.findByIdAndUpdate(id, body, { new: true });
-        res.json({ success: true, data: updatedQuiz });
+        res.json({ success: true, data: quiz });
     }
     catch (error) {
         console.error('Update quiz error:', error);
@@ -100,60 +80,6 @@ const updateQuiz = async (req, res) => {
     }
 };
 exports.updateQuiz = updateQuiz;
-const deleteQuiz = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const firebaseUid = req.user?.uid;
-        if (!firebaseUid) {
-            res.status(400).json({ error: 'User ID is required' });
-            return;
-        }
-        const quiz = await Quiz_1.default.findById(id);
-        if (!quiz) {
-            res.status(404).json({ error: 'Quiz not found' });
-            return;
-        }
-        // Check if the user is the creator of the quiz
-        if (quiz.createdBy !== firebaseUid) {
-            res.status(403).json({ error: 'You can only delete quizzes you created' });
-            return;
-        }
-        // Delete the quiz
-        await Quiz_1.default.findByIdAndDelete(id);
-        // Also delete related quiz attempts
-        await QuizAttempt_1.default.deleteMany({ quizId: id });
-        res.json({ success: true, message: 'Quiz deleted successfully' });
-    }
-    catch (error) {
-        console.error('Delete quiz error:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-};
-exports.deleteQuiz = deleteQuiz;
-const getQuizzesByCreator = async (req, res) => {
-    try {
-        const firebaseUid = req.user?.uid;
-        const { limit = 10, offset = 0 } = req.query;
-        if (!firebaseUid) {
-            res.status(400).json({ error: 'User ID is required' });
-            return;
-        }
-        const quizzes = await Quiz_1.default.find({ createdBy: firebaseUid })
-            .select('title description category difficulty totalPoints timeLimit isActive createdAt')
-            .sort({ createdAt: -1 })
-            .limit(Number(limit))
-            .skip(Number(offset));
-        res.json({
-            success: true,
-            data: quizzes
-        });
-    }
-    catch (error) {
-        console.error('Get quizzes by creator error:', error);
-        res.status(500).json({ error: 'Internal server error' });
-    }
-};
-exports.getQuizzesByCreator = getQuizzesByCreator;
 const approveQuestion = async (req, res) => {
     try {
         const { quizId, questionIndex, approved } = req.body;
