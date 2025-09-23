@@ -11,6 +11,8 @@ import TreeHeroGame from "@/components/TreeHeroGame";
 import ClimateTimeTravelerGame from "@/components/ClimateTimeTravelerGame";
 import ForestMatchGame from "@/components/ForestMatchGame";
 import { Leaderboard } from "@/components/Leaderboard";
+import { CommunityFeed } from "@/components/CommunityFeed";
+import { CommunityComposer } from "@/components/CommunityComposer";
 import { Profile } from "@/components/Profile";
 import { GamingBackground } from "@/components/GamingBackground";
 import { useUserProgress } from "@/contexts/UserProgressContext";
@@ -19,6 +21,7 @@ import { WelcomeBurst } from "@/components/WelcomeBurst";
 import QRScanner from "@/components/QRScanner";
 import ARTreeScanner from "@/components/ARTreeScanner";
 import WhatsAppShareCard from "@/components/WhatsAppShareCard";
+import StudentClassSpace from "@/components/StudentClassSpace";
 
 const Index = () => {
   const [currentView, setCurrentView] = useState("dashboard");
@@ -133,6 +136,17 @@ const Index = () => {
             onBack={() => setCurrentView("dashboard")}
           />
         );
+      case "class-space":
+        return (
+          <StudentClassSpace
+            onStartQuiz={(quizId) => {
+              if (!quizId) return;
+              setSelectedQuizCategory(`firestore:${quizId}`);
+              setShowWelcome("Starting class quiz!");
+              setCurrentView("quiz");
+            }}
+          />
+        );
       case "waste-sorting":
         return <WasteSortingGame onComplete={handleGameComplete} />;
       case "water-simulator":
@@ -147,6 +161,13 @@ const Index = () => {
         return <ForestMatchGame onComplete={handleGameComplete} />;
       case "leaderboard":
         return <Leaderboard />;
+      case "community":
+        return (
+          <div className="space-y-4">
+            <CommunityComposer />
+            <CommunityFeed />
+          </div>
+        );
       case "profile":
         return <Profile userStats={userStats} />;
       case "qr-scanner":

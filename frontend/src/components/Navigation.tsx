@@ -11,7 +11,8 @@ import {
   User,
   Leaf,
   Award,
-  LogOut
+  LogOut,
+  MessageCircle
 } from "lucide-react";
 
 interface NavigationProps {
@@ -32,12 +33,15 @@ export const Navigation = ({ currentView, onViewChange, userStats }: NavigationP
     { id: "dashboard", label: t("nav.dashboard"), icon: Home },
     { id: "quiz", label: t("nav.quiz"), icon: Brain },
     { id: "games", label: t("nav.games"), icon: Gamepad2 },
+    { id: "class-space", label: "Class Space", icon: Award },
     { id: "leaderboard", label: t("nav.leaderboard"), icon: Trophy },
+    { id: "community", label: "Community", icon: MessageCircle },
     { id: "profile", label: t("nav.profile"), icon: User },
   ];
 
   const handleLogout = async () => {
     try {
+      try { sessionStorage.removeItem('admin.portal.ok'); } catch {}
       await logout();
     } catch (error) {
       console.error("Failed to logout:", error);
@@ -108,7 +112,7 @@ export const Navigation = ({ currentView, onViewChange, userStats }: NavigationP
           );
         })}
         <a
-          href="/admin"
+          href="/admin-login"
           className="block w-full"
         >
           <Button

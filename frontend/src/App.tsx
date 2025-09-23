@@ -10,6 +10,9 @@ import LoginForm from "./components/LoginForm";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Admin from "./pages/Admin";
+import Classroom from "./pages/Classroom";
+import AdminRoute from "./components/AdminRoute";
+import AdminLogin from "./pages/AdminLogin";
 import Join from "./pages/Join";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { pwaService } from "./lib/pwaService";
@@ -86,17 +89,22 @@ const App = () => {
                     } 
                   />
                   <Route 
+                    path="/classroom/:code" 
+                    element={<Classroom />} 
+                  />
+                  <Route 
                     path="/join" 
                     element={<Join />} 
                   />
                   <Route 
                     path="/admin" 
                     element={
-                      <ProtectedRoute>
+                      <AdminRoute>
                         <Admin />
-                      </ProtectedRoute>
+                      </AdminRoute>
                     } 
                   />
+                  <Route path="/admin-login" element={<AdminLogin />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
                 <PWAInstallPrompt />

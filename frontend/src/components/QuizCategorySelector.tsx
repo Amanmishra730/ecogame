@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
-import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, query, orderBy, limit, where } from "firebase/firestore";
 
 const quizCategories = [
   {
@@ -77,7 +77,14 @@ export const QuizCategorySelector = ({ onSelectCategory, onBack }: QuizCategoryS
   useEffect(() => {
     (async () => {
       try {
-        const snap = await getDocs(query(collection(db, 'quizzes'), orderBy('title'), limit(30)));
+        // Only show quizzes that are explicitly active
+        const q = query(
+          collection(db, 'quizzes'),
+          where('isActive', '==', true),
+          orderBy('title'),
+          limit(30)
+        );
+        const snap = await getDocs(q);
         const items = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
         setCustomQuizzes(items);
       } catch (e) {

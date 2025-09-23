@@ -289,3 +289,5 @@ export default QRScanner;
 
 
 
+
+

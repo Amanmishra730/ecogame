@@ -9,9 +9,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
-import app, { auth } from "@/lib/firebase";
-import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import app, { auth, db } from "@/lib/firebase";
+import { getStorage, ref as storageRef, uploadString, getDownloadURL } from "firebase/storage";
+import { useAuth } from "@/contexts/AuthContext";
+import { addDoc, collection, serverTimestamp, updateDoc, doc, deleteDoc, setDoc, getDoc } from "firebase/firestore";
 import { QuizAdminService } from "@/lib/quizAdminService";
+import { getDocs, orderBy, query, where, limit as fsLimit, collection as fsCollection } from "firebase/firestore";
 
 import { 
   BarChart3, 
@@ -36,8 +39,10 @@ import {
   Send,
   Edit,
   Play,
-  Pause
+  Pause,
+  ArrowLeft
 } from "lucide-react";
+import { Link } from "react-router-dom";
 
 interface QuizFormQuestion {
   question: string;
@@ -80,6 +85,7 @@ interface SessionItem {
 }
 
 export default function Admin() {
+  const { currentUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [title, setTitle] = React.useState("");
@@ -97,16 +103,114 @@ export default function Admin() {
     adminUserId: string;
     quizId?: string;
     active: boolean;
-    expiresAt: string;
+    expiresAt: string | null;
+    name?: string | null;
     createdAt: string;
     updatedAt: string;
   }
   const [codespace, setCodespace] = React.useState<Codespace | null>(null);
   const [csLoading, setCsLoading] = React.useState(false);
   const [csTtl, setCsTtl] = React.useState(120);
+  const [csName, setCsName] = React.useState("");
+  const [csPermanent, setCsPermanent] = React.useState(true);
+  const [csQuizId, setCsQuizId] = React.useState<string>("");
+  const [fsQuizzes, setFsQuizzes] = React.useState<{id:string; title:string}[]>([]);
+  // All quizzes displayed in Class Space table
+  const [allQuizzes, setAllQuizzes] = React.useState<{id:string; title:string; createdAt:string; category:string; questions:number; attempts:number; difficulty:string; status:'active'|'draft'}[]>([]);
+  const [searchQuery, setSearchQuery] = React.useState("");
+
+  const loadAllQuizzes = async () => {
+    try {
+      const snap = await getDocs(collection(db, 'quizzes'));
+      const arr = snap.docs.map((d:any) => {
+        const q = d.data() || {};
+        const createdStr: string = q.createdAt?.toDate ? q.createdAt.toDate().toISOString().slice(0,10) : (q.createdAt || new Date().toISOString().slice(0,10));
+        const isActive = !!q.isActive;
+        const status: 'active' | 'draft' = isActive ? 'active' : 'draft';
+        const difficultyStr: string = q.difficulty || 'medium';
+        const categoryStr: string = q.category || 'General';
+        const questionsCount: number = Array.isArray(q.questions) ? q.questions.length : Number(q.questionsCount || 0);
+        const attemptsCount: number = Number(q.attempts || 0);
+        return { id: String(d.id), title: String(q.title || 'Untitled'), createdAt: createdStr, category: categoryStr, questions: questionsCount, attempts: attemptsCount, difficulty: difficultyStr, status };
+      });
+      // Sort by created date desc
+      arr.sort((a,b)=> (b.createdAt.localeCompare(a.createdAt)));
+      setAllQuizzes(arr);
+    } catch (e) {
+      console.warn('Failed to load quizzes list', e);
+      setAllQuizzes([]);
+    }
+  };
+  const reloadFsQuizzes = async () => {
+    try {
+      // First try: only active quizzes (avoid composite index by not ordering here)
+      let q1 = query(collection(db, 'quizzes'), where('isActive', '==', true));
+      let snap = await getDocs(q1);
+      let arr = snap.docs.map((d:any) => ({ id: d.id, title: (d.data()?.title || 'Untitled') as string }));
+      // Fallback: if none active, show all quizzes so admin can still attach one
+      if (arr.length === 0) {
+        snap = await getDocs(collection(db, 'quizzes'));
+        arr = snap.docs.map((d:any) => ({ id: d.id, title: (d.data()?.title || 'Untitled') as string }));
+      }
+      // Client-side sort by title for UI consistency
+      arr.sort((a,b)=>a.title.localeCompare(b.title));
+      setFsQuizzes(arr);
+      if (arr.length && !csQuizId) setCsQuizId(arr[0].id);
+    } catch (e) {
+      console.warn('Failed to load quizzes for codespace', e);
+      setFsQuizzes([]);
+    }
+  };
 
   const [showCreateForm, setShowCreateForm] = React.useState(false);
-  const [query, setQuery] = React.useState("");
+  // Edit quiz modal state
+  const [editOpen, setEditOpen] = React.useState(false);
+  const [editQuizId, setEditQuizId] = React.useState<string>("");
+  const [editTitle, setEditTitle] = React.useState("");
+  const [editCategory, setEditCategory] = React.useState("");
+  const [editDifficulty, setEditDifficulty] = React.useState<'easy'|'medium'|'hard'>("medium");
+  const [editTimeLimit, setEditTimeLimit] = React.useState<number>(5);
+  const [editDescription, setEditDescription] = React.useState("");
+
+  const startEdit = (quiz: {id:string; title:string; category:string; difficulty:string; createdAt:string}) => {
+    setEditQuizId(quiz.id);
+    setEditTitle(quiz.title);
+    setEditCategory(quiz.category);
+    setEditDifficulty((quiz.difficulty as any) || 'medium');
+    setEditTimeLimit(timeLimit || 5);
+    setEditDescription(description || "");
+    setEditOpen(true);
+  };
+
+  const saveEdit = async () => {
+    try {
+      if (!editQuizId) return;
+      await updateDoc(doc(db, 'quizzes', editQuizId), {
+        title: editTitle,
+        category: editCategory,
+        difficulty: editDifficulty,
+        timeLimit: editTimeLimit,
+        description: editDescription,
+        updatedAt: serverTimestamp(),
+      });
+      await reloadFsQuizzes();
+      await loadAllQuizzes();
+      setEditOpen(false);
+    } catch (e:any) {
+      alert(`Failed to save quiz: ${e.message || e}`);
+    }
+  };
+
+  const removeQuiz = async (id: string) => {
+    try {
+      if (!window.confirm('Delete this quiz? This cannot be undone.')) return;
+      await deleteDoc(doc(db, 'quizzes', id));
+      await reloadFsQuizzes();
+      await loadAllQuizzes();
+    } catch (e:any) {
+      alert(`Failed to delete quiz: ${e.message || e}`);
+    }
+  };
 
   // Mock data for dashboard
   const stats = {
@@ -126,11 +230,31 @@ export default function Admin() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
-        setCodespace(null);
-        return;
+        // Backend has no active codespace; try Firestore mirror
+        try {
+          if (!currentUser?.uid) { setCodespace(null); return; }
+          const mirrorRef = doc(db, 'adminCodespaces', currentUser.uid);
+          const mirrorSnap = await getDoc(mirrorRef);
+          if (mirrorSnap.exists()) {
+            const cs: any = mirrorSnap.data();
+            if (cs && cs.active) { setCodespace(cs as any); return; }
+          }
+          setCodespace(null);
+          return;
+        } catch {
+          setCodespace(null);
+          return;
+        }
       }
       const data = await res.json();
       setCodespace(data);
+      // Mirror to Firestore for persistence in UI
+      try {
+        if (currentUser?.uid) {
+          const mirrorRef = doc(db, 'adminCodespaces', currentUser.uid);
+          await setDoc(mirrorRef, { ...data, adminUserId: currentUser.uid, mirroredAt: serverTimestamp() }, { merge: true });
+        }
+      } catch {}
     } finally {
       setCsLoading(false);
     }
@@ -147,11 +271,23 @@ export default function Admin() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ ttlMinutes: csTtl }),
+        body: JSON.stringify({
+          ttlMinutes: csPermanent ? undefined : csTtl,
+          quizId: csQuizId || undefined,
+          name: csName || undefined,
+          permanent: csPermanent
+        }),
       });
       if (!res.ok) { const msg = await readError(res); alert(msg); return; }
       const data = await res.json();
       setCodespace(data);
+      // Mirror to Firestore so UI can restore after reload
+      try {
+        if (currentUser?.uid) {
+          const mirrorRef = doc(db, 'adminCodespaces', currentUser.uid);
+          await setDoc(mirrorRef, { ...data, adminUserId: currentUser.uid, mirroredAt: serverTimestamp() }, { merge: true });
+        }
+      } catch {}
     } catch (e:any) {
       alert(e.message);
     } finally {
@@ -170,46 +306,124 @@ export default function Admin() {
       });
       if (!res.ok) { const msg = await readError(res); alert(msg); return; }
       setCodespace(null);
+      // Clear Firestore mirror
+      try {
+        if (currentUser?.uid) {
+          const mirrorRef = doc(db, 'adminCodespaces', currentUser.uid);
+          await setDoc(mirrorRef, { active: false, updatedAt: serverTimestamp() }, { merge: true });
+        }
+      } catch {}
     } finally {
       setCsLoading(false);
     }
   };
 
   React.useEffect(() => { fetchCodespace(); }, []);
+  // Refetch codespace when entering Class Space tab
+  React.useEffect(() => {
+    if (activeTab === 'classes') {
+      fetchCodespace();
+    }
+  }, [activeTab]);
+  // Load quizzes for dropdown and the main table
+  React.useEffect(() => { reloadFsQuizzes(); loadAllQuizzes(); }, []);
 
-  const recentActivity = [
-    { name: "Sarah Johnson", action: "completed Nature Quiz", time: "2 hours ago", avatar: "SJ" },
-    { name: "Mike Chen", action: "earned Forest Guardian badge", time: "4 hours ago", avatar: "MC" },
-    { name: "Emma Davis", action: "started Climate Challenge", time: "6 hours ago", avatar: "ED" }
-  ];
+  const [recentActivity, setRecentActivity] = React.useState<{name:string; action:string; time:string; avatar:string}[]>([]);
+  React.useEffect(() => {
+    (async () => {
+      try {
+        // Pull most recently updated userProgress docs
+        const q = query(fsCollection(db, 'userProgress'), orderBy('updatedAt', 'desc'), fsLimit(5));
+        const snap = await getDocs(q);
+        const items: any[] = [];
+        snap.forEach((d:any) => {
+          const u = d.data();
+          const name: string = u.displayName || (u.userId || '').slice(0,6);
+          const avatar = (name.split(' ').map((w:string)=>w[0]).join('') || 'U').slice(0,2).toUpperCase();
+          const time = u.updatedAt ? new Date(u.updatedAt).toLocaleTimeString() : '';
+          // Simple activity message
+          const action = u.badges > 0 ? `earned ${u.badges} badge${u.badges>1?'s':''}` : `has ${u.xp} XP`;
+          items.push({ name, action, time, avatar });
+        });
+        setRecentActivity(items);
+      } catch (e) {
+        console.warn('Failed to load recent activity', e);
+        setRecentActivity([]);
+      }
+    })();
+  }, []);
 
-  const initialQuizzes = [
-    { id: 'q1', title: 'React Fundamentals', createdAt: '2024-01-15', category: 'Frontend Development', questions: 25, attempts: 142, difficulty: 'medium', status: 'active' },
-    { id: 'q2', title: 'JavaScript ES6+', createdAt: '2024-01-12', category: 'Programming', questions: 30, attempts: 89, difficulty: 'hard', status: 'active' },
-    { id: 'q3', title: 'Climate Basics', createdAt: '2024-02-01', category: 'Environment', questions: 20, attempts: 57, difficulty: 'easy', status: 'draft' },
-  ];
+  
 
-  const [allQuizzes, setAllQuizzes] = React.useState(initialQuizzes);
+  // XP & Leaderboard (live from Firestore userProgress)
+  const [xpStats, setXpStats] = useState({ totalXP: 0, activeStudents: 0, certificates: 0, avgWeeklyXP: 0 });
+  const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
+  const [badges, setBadges] = useState<{ title: string; desc: string; count: number }[]>([
+    { title: 'Quiz Master', desc: 'Complete 20 quizzes', count: 0 },
+    { title: 'Speed Learner', desc: 'Earn 500 XP in a week', count: 0 },
+    { title: 'Consistent', desc: 'Study 7 days in a row', count: 0 },
+  ]);
 
-  // Mock data for XP & Leaderboard
-  const xpStats = {
-    totalXP: 13890,
-    activeStudents: 6,
-    certificates: 11,
-    avgWeeklyXP: 318,
-  } as const;
+  React.useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDocs(fsCollection(db, 'userProgress'));
+        const rows: LeaderboardRow[] = [];
+        let totalXP = 0;
+        let certificates = 0;
+        let activeStudents = 0;
+        let activeXpSum = 0;
+        let quizMaster = 0;
+        let speedLearnerApprox = 0; // Approx: active this week and xp >= 500
+        let consistent = 0;
 
-  const leaderboard: LeaderboardRow[] = [
-    { rank: 1, initials: 'AJ', name: 'Alice Johnson', xp: 2850, delta: +420, quizzes: 18, certs: 3 },
-    { rank: 2, initials: 'BC', name: 'Bob Chen', xp: 2640, delta: +380, quizzes: 16, certs: 2 },
-    { rank: 3, initials: 'CD', name: 'Carol Davis', xp: 2420, delta: +290, quizzes: 15, certs: 2 },
-  ];
+        const now = Date.now();
+        const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
-  const badges: { title: string; desc: string; count: number }[] = [
-    { title: 'Quiz Master', desc: 'Complete 20 quizzes', count: 3 },
-    { title: 'Speed Learner', desc: 'Earn 500 XP in a week', count: 8 },
-    { title: 'Consistent', desc: 'Study 7 days in a row', count: 5 },
-  ];
+        snap.forEach((d: any) => {
+          const u = d.data() || {};
+          const xp = Number(u.xp || 0);
+          const name: string = u.displayName || (u.userId || 'User');
+          const initials = (name.split(' ').map((w: string) => w[0]).join('') || 'U').slice(0, 2).toUpperCase();
+          const quizzes = Number(u.completedQuizzes || 0);
+          const certs = Number(u.badges || 0);
+          const updatedAtMs = u.updatedAt ? new Date(u.updatedAt).getTime() : 0;
+          const isActive = !!updatedAtMs && (now - updatedAtMs) <= WEEK_MS; // last 7 days
+
+          totalXP += xp;
+          certificates += certs;
+          if (isActive) { activeStudents += 1; activeXpSum += xp; }
+
+          if (quizzes >= 20) quizMaster += 1;
+          if (isActive && xp >= 500) speedLearnerApprox += 1;
+          if (Number(u.streak || 0) >= 7) consistent += 1;
+
+          rows.push({ rank: 0, initials, name, xp, delta: 0, quizzes, certs });
+        });
+
+        // Sort and rank
+        rows.sort((a, b) => b.xp - a.xp);
+        rows.forEach((r, i) => { r.rank = i + 1; });
+
+        setLeaderboard(rows);
+        setXpStats({
+          totalXP,
+          activeStudents,
+          avgWeeklyXP: Math.round(activeXpSum / 7),
+          certificates,
+        });
+        setBadges([
+          { title: 'Quiz Master', desc: 'Complete 20 quizzes', count: quizMaster },
+          { title: 'Speed Learner', desc: 'Earn 500 XP in a week', count: speedLearnerApprox },
+          { title: 'Consistent', desc: 'Study 7 days in a row', count: consistent },
+        ]);
+      } catch (e) {
+        console.warn('Failed to load leaderboard data', e);
+        setLeaderboard([]);
+        setXpStats({ totalXP: 0, activeStudents: 0, certificates: 0, avgWeeklyXP: 0 });
+      }
+    })();
+  }, []);
 
   const [xpTab, setXpTab] = useState<'all'|'week'|'month'>('all');
   // Settings state
@@ -234,18 +448,195 @@ export default function Admin() {
   const [autoIssueCertificates, setAutoIssueCertificates] = useState(true);
   const [publicLeaderboard, setPublicLeaderboard] = useState(true);
 
-  // Mock data for Certifications
-  const certStats = { totalIssued: 3, delivered: 2, templates: 4, thisMonth: 12 } as const;
-  const certTemplates: { title: string; type: string }[] = [
+  // Certifications: live from Firestore
+  const [certStats, setCertStats] = useState({ totalIssued: 0, delivered: 0, templates: 3, thisMonth: 0 });
+  const [certTemplates, setCertTemplates] = useState<{ title: string; type: string }[]>([
     { title: 'Classic Blue', type: 'Achievement' },
     { title: 'Modern Gold', type: 'Completion' },
     { title: 'Professional', type: 'Course' },
-  ];
-  const recentCerts: { name: string; course: string; date: string; template: string; status: 'Delivered'|'Pending' }[] = [
-    { name: 'Alice Johnson', course: 'Advanced React Development', date: '2024-01-15', template: 'Classic Blue', status: 'Delivered' },
-    { name: 'Bob Chen', course: 'JavaScript Fundamentals', date: '2024-01-14', template: 'Modern Gold', status: 'Pending' },
-    { name: 'Carol Davis', course: 'Backend with Node.js', date: '2024-01-13', template: 'Professional', status: 'Delivered' },
-  ];
+  ]);
+  const [recentCerts, setRecentCerts] = useState<{ name: string; course: string; date: string; template: string; status: 'Delivered'|'Pending' }[]>([]);
+
+  const loadCertificates = async () => {
+    try {
+      const now = new Date();
+      const thisMonthKey = `${now.getFullYear()}-${(now.getMonth()+1).toString().padStart(2,'0')}`;
+      const q = query(fsCollection(db, 'certificates'), orderBy('createdAt', 'desc'), fsLimit(50));
+      const snap = await getDocs(q);
+      const rows: { name: string; course: string; date: string; template: string; status: 'Delivered'|'Pending' }[] = [];
+      let total = 0, delivered = 0, thisMonth = 0;
+      snap.forEach((d:any) => {
+        const c = d.data() || {};
+        total += 1;
+        if ((c.status || 'Delivered') === 'Delivered') delivered += 1;
+        const dt = c.createdAt?.toDate ? c.createdAt.toDate() : (c.createdAt ? new Date(c.createdAt) : new Date());
+        const key = `${dt.getFullYear()}-${(dt.getMonth()+1).toString().padStart(2,'0')}`;
+        if (key === thisMonthKey) thisMonth += 1;
+        rows.push({
+          name: String(c.studentName || 'Student'),
+          course: String(c.course || 'Course'),
+          date: dt.toISOString().slice(0,10),
+          template: String(c.template || 'Classic Blue'),
+          status: (c.status || 'Delivered') as any
+        });
+      });
+      setRecentCerts(rows);
+      setCertStats({ totalIssued: total, delivered, templates: certTemplates.length, thisMonth });
+    } catch (e) {
+      console.warn('Failed to load certificates', e);
+      setRecentCerts([]);
+      setCertStats(s => ({ ...s, totalIssued: 0, delivered: 0, thisMonth: 0 }));
+    }
+  };
+
+  React.useEffect(() => { loadCertificates(); }, []);
+
+  // Generate a certificate PNG using Canvas (no extra deps), upload to Storage, return URL
+  const renderCertificatePng = async (studentName: string, course: string, dateStr: string) => {
+    const width = 1120; const height = 790;
+    const canvas = document.createElement('canvas');
+    canvas.width = width; canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas not supported');
+
+    // Background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0,0,width,height);
+    // Border
+    ctx.strokeStyle = '#c9d3de';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(24,24,width-48,height-48);
+
+    // Top ribbon
+    const grad1 = ctx.createLinearGradient(0,0,width,170);
+    grad1.addColorStop(0,'#0b5394'); grad1.addColorStop(1,'#043d75');
+    ctx.fillStyle = grad1;
+    ctx.beginPath();
+    ctx.moveTo(0,0);
+    ctx.bezierCurveTo(220,140,500,60,700,110);
+    ctx.bezierCurveTo(880,150,1000,120,1120,60);
+    ctx.lineTo(1120,0); ctx.closePath(); ctx.fill();
+
+    ctx.fillStyle = 'rgba(17,76,138,0.5)';
+    ctx.beginPath();
+    ctx.moveTo(0,0);
+    ctx.bezierCurveTo(240,120,540,80,760,120);
+    ctx.bezierCurveTo(940,150,1040,140,1120,100);
+    ctx.lineTo(1120,0); ctx.closePath(); ctx.fill();
+
+    // Bottom ribbon
+    ctx.fillStyle = 'rgba(17,76,138,0.75)';
+    ctx.beginPath();
+    ctx.moveTo(0,170);
+    ctx.bezierCurveTo(220,30,520,110,740,60);
+    ctx.bezierCurveTo(940,15,1050,40,1120,80);
+    ctx.lineTo(1120,170); ctx.lineTo(0,170); ctx.closePath();
+    ctx.translate(0,height-170); ctx.fill(); ctx.resetTransform();
+
+    ctx.fillStyle = 'rgba(11,83,148,0.5)';
+    ctx.beginPath();
+    ctx.moveTo(0,170);
+    ctx.bezierCurveTo(260,60,520,130,760,90);
+    ctx.bezierCurveTo(960,55,1060,80,1120,120);
+    ctx.lineTo(1120,170); ctx.lineTo(0,170); ctx.closePath();
+    ctx.translate(0,height-170); ctx.fill(); ctx.resetTransform();
+
+    // Headings
+    ctx.fillStyle = '#1f2b3a';
+    ctx.textAlign = 'center';
+    ctx.font = '600 34px Georgia, Times New Roman, serif';
+    ctx.fillText('CERTIFICATE', width/2, 160);
+    ctx.font = '600 16px system-ui, -apple-system, Segoe UI, Roboto';
+    ctx.fillText('of Achievement'.toUpperCase(), width/2, 190);
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '14px system-ui, -apple-system, Segoe UI, Roboto';
+    ctx.fillText('This certificate is proudly presented to', width/2, 225);
+
+    // Name
+    ctx.fillStyle = '#2f3b4c';
+    ctx.font = 'italic 48px Georgia, Times New Roman, serif';
+    ctx.fillText(studentName, width/2, 275);
+    // Line
+    ctx.strokeStyle = '#c9d3de'; ctx.lineWidth = 2; 
+    ctx.beginPath(); ctx.moveTo((width-560)/2, 290); ctx.lineTo((width+560)/2, 290); ctx.stroke();
+
+    // Description
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '16px system-ui, -apple-system, Segoe UI, Roboto';
+    const desc = `For outstanding performance and completion of ${course} on ${dateStr}.`;
+    ctx.fillText(desc, width/2, 320);
+
+    // Signatures
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '12px system-ui, -apple-system, Segoe UI, Roboto';
+    // left
+    ctx.beginPath(); ctx.moveTo(200, height-140); ctx.lineTo(440, height-140); ctx.strokeStyle = '#c9d3de'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillText('Rufus Stewart', 320, height-122);
+    ctx.fillText('REPRESENTATIVES', 320, height-106);
+    // right
+    ctx.beginPath(); ctx.moveTo(width-440, height-140); ctx.lineTo(width-200, height-140); ctx.stroke();
+    ctx.fillText('Olivia Wilson', width-320, height-122);
+    ctx.fillText('REPRESENTATIVES', width-320, height-106);
+
+    return canvas.toDataURL('image/png');
+  };
+
+  const issueCertificate = async (preferredTemplate?: string) => {
+    try {
+      const studentName = window.prompt('Student name?');
+      if (!studentName) return;
+      const course = window.prompt('Course/Quiz name?') || 'Course';
+      const studentEmail = window.prompt('Student email (optional, for sending link)?') || '';
+      const template = preferredTemplate || certTemplates[0]?.title || 'Classic Blue';
+      const docRef = await addDoc(fsCollection(db, 'certificates'), {
+        studentName,
+        studentEmail,
+        course,
+        template,
+        status: 'Pending',
+        adminUserId: currentUser?.uid || null,
+        createdAt: serverTimestamp(),
+      });
+      // Generate PNG and upload
+      const dateStr = new Date().toISOString().slice(0,10);
+      const dataUrl = await renderCertificatePng(studentName, course, dateStr);
+      const storage = getStorage();
+      const path = `certificates/${docRef.id}/certificate.png`;
+      const fileRef = storageRef(storage, path);
+      await uploadString(fileRef, dataUrl, 'data_url');
+      const url = await getDownloadURL(fileRef);
+      // Update doc with fileUrl and delivered
+      await updateDoc(doc(db, 'certificates', docRef.id), { fileUrl: url, status: 'Delivered' });
+      await addDoc(fsCollection(db, 'healthchecks'), { source: 'cert-upload', at: serverTimestamp(), certId: docRef.id, ok: true });
+      // Refresh list and open link
+      await loadCertificates();
+      alert('Certificate image generated and uploaded. A download link will open next.');
+      if (studentEmail) {
+        const subject = encodeURIComponent(`Your Certificate - ${course}`);
+        const body = encodeURIComponent(`Hi ${studentName},%0D%0A%0D%0ACongratulations! Here is your certificate:%0D%0A${url}%0D%0A%0D%0ABest regards,%0D%0AEcoLearn`);
+        window.open(`mailto:${studentEmail}?subject=${subject}&body=${body}`, '_blank');
+      } else {
+        window.open(url, '_blank');
+      }
+    } catch (e:any) {
+      alert(`Failed to issue certificate: ${e.message || e}`);
+    }
+  };
+
+  const exportCertificates = async () => {
+    try {
+      const header = 'Student,Course,Date,Template,Status\n';
+      const rows = recentCerts.map(c => [c.name, c.course, c.date, c.template, c.status].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+      const csv = header + rows.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'certificates.csv'; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e:any) {
+      alert(`Failed to export: ${e.message || e}`);
+    }
+  };
 
   // Mock data for Class Space
   const classesData: ClassItem[] = [
@@ -297,45 +688,33 @@ export default function Admin() {
       setLoading(true);
       if (!title || questions.length === 0) { throw new Error('Title and at least one question required'); }
 
-      
-      // Create new quiz object for Class Space
-      const newQuiz = {
-        id: `q${Date.now()}`,
+      // Persist to Firestore
+      const payload: any = {
         title,
-        createdAt: new Date().toISOString().split('T')[0],
+        description,
         category,
-        questions: questions.length,
-        attempts: 0,
         difficulty,
-        status: 'draft' as const
+        timeLimit,
+        isActive: false,
+        attempts: 0,
+        questionsCount: questions.length,
+        createdAt: serverTimestamp(),
       };
-      
-      // Add to quizzes array (Class Space)
-      setAllQuizzes(prev => [...prev, newQuiz]);
-      
-      // Also save to Firestore for persistence
-      const meta = { title, description, category, difficulty, totalPoints, timeLimit, isActive: false } as const;
-      const id = await QuizAdminService.createQuiz(meta, questions);
+      // Optionally store full questions array
+      payload.questions = questions;
+      await addDoc(collection(db, 'quizzes'), payload);
 
-      
+      // Refresh UI
+      await reloadFsQuizzes();
+      await loadAllQuizzes();
+
       // Reset form
-      setTitle(""); 
-      setDescription(""); 
-      setQuestions([]); 
+      setTitle("");
+      setDescription("");
+      setQuestions([]);
       setShowCreateForm(false);
-      
-      // Show success message
-      alert(`Quiz "${title}" created successfully! 
-      
-✅ Quiz has been added to Class Space
-✅ Status: Draft (students cannot access yet)
-✅ Next: Go to Class Space to activate the quiz for students
 
-To make it available to students:
-1. Go to Class Space section
-2. Find your quiz in the table
-3. Click the actions menu (⋮) 
-4. Select "Activate Quiz"`);
+      alert('Quiz created. It is Draft by default. Use the table actions to Activate.');
     } catch (e:any) {
       alert(e.message);
     } finally {
@@ -360,7 +739,7 @@ To make it available to students:
   const connectionTest = async () => {
     try {
       setLoading(true);
-      await addDoc(collection(require("@/lib/firebase").db, "healthchecks"), {
+      await addDoc(collection(db, "healthchecks"), {
         source: "admin-panel",
         createdAt: serverTimestamp(),
       });
@@ -375,10 +754,20 @@ To make it available to students:
 
   const renderDashboard = () => (
     <div className="space-y-6">
+      {/* Back to main EcoLearn */}
+      <div className="flex items-center">
+        <Link to="/">
+          <Button variant="outline" size="sm" className="rounded-full">
+            <ArrowLeft className="w-4 h-4 mr-2" /> Back to EcoLearn
+          </Button>
+        </Link>
+      </div>
       {/* Welcome Banner */}
       <div className="bg-gradient-to-r from-purple-600 via-blue-600 to-purple-700 rounded-2xl p-8 text-white relative overflow-hidden">
         <div className="relative z-10">
-          <h1 className="text-3xl font-bold mb-2">Welcome back, Admin!</h1>
+          <h1 className="text-3xl font-bold mb-2">
+          {`Welcome back, ${currentUser?.displayName || (currentUser?.email ? currentUser.email.split('@')[0] : 'Teacher')}!`}
+        </h1>
           <p className="text-purple-100 mb-6">Your learning platform is thriving with active students and growing engagement.</p>
           <Button className="bg-white/20 hover:bg-white/30 text-white border-white/30">
             <Eye className="w-4 h-4 mr-2" />
@@ -490,11 +879,11 @@ To make it available to students:
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3">
-              <Button variant="outline" className="h-20 flex-col">
+              <Button variant="outline" className="h-20 flex-col" onClick={()=>{ setShowCreateForm(true); setActiveTab('classes'); }}>
                 <Plus className="w-5 h-5 mb-2" />
                 Create Quiz
               </Button>
-              <Button variant="outline" className="h-20 flex-col">
+              <Button variant="outline" className="h-20 flex-col" onClick={()=> setActiveTab('classes')}>
                 <Users className="w-5 h-5 mb-2" />
                 Manage Classes
               </Button>
@@ -526,8 +915,8 @@ To make it available to students:
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder="Search quizzes..."
-              value={query}
-              onChange={(e)=>setQuery(e.target.value)}
+              value={searchQuery}
+              onChange={(e)=>setSearchQuery(e.target.value)}
               className="pl-10 h-12 rounded-xl"
             />
           </div>
@@ -598,28 +987,68 @@ To make it available to students:
           <div className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2">
-                <label className="text-sm font-medium">TTL (minutes)</label>
-                <Input type="number" className="w-28" value={csTtl} onChange={(e)=>setCsTtl(parseInt(e.target.value||'0',10))} />
+                <label className="text-sm font-medium">Class Space Name</label>
+                <Input className="w-56" placeholder="e.g. Grade 7 - A" value={csName} onChange={(e)=>setCsName(e.target.value)} />
               </div>
+              {!csPermanent && (
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium">TTL (minutes)</label>
+                  <Input type="number" className="w-28" value={csTtl} onChange={(e)=>setCsTtl(parseInt(e.target.value||'0',10))} />
+                </div>
+              )}
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">Permanent</label>
+                <Switch checked={csPermanent} onCheckedChange={setCsPermanent} />
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-sm font-medium">Quiz</label>
+                <select className="h-10 border rounded-md px-3" value={csQuizId} onChange={(e)=>setCsQuizId(e.target.value)}>
+                  {fsQuizzes.map(q => (
+                    <option key={q.id} value={q.id}>{q.title}</option>
+                  ))}
+                  {fsQuizzes.length === 0 && <option value="" disabled>No quizzes</option>}
+                </select>
+                <Button type="button" variant="secondary" onClick={reloadFsQuizzes} className="h-10">
+                  Refresh
+                </Button>
+              </div>
+              {fsQuizzes.length === 0 && (
+                <div className="text-xs text-muted-foreground">
+                  No quizzes found. Create a quiz below or check Firestore rules for the `quizzes` collection.
+                </div>
+              )}
               <Button onClick={createCodespace} disabled={csLoading}>
-                {csLoading ? 'Generating...' : 'Generate Codespace'}
+                {csLoading ? 'Creating...' : 'Create Class Space'}
               </Button>
               {codespace && (
                 <Button variant="outline" onClick={deactivateCodespace} disabled={csLoading}>
-                  Deactivate
+                  Deactivate Class Space
                 </Button>
               )}
             </div>
             {codespace ? (
               <div className="flex flex-wrap items-center gap-4 p-4 border rounded-xl bg-muted/30">
+                {codespace.name && (
+                  <div>
+                    <div className="text-sm text-muted-foreground">Class Space</div>
+                    <div className="font-medium">{codespace.name}</div>
+                  </div>
+                )}
                 <div>
                   <div className="text-sm text-muted-foreground">Active Code</div>
                   <div className="text-3xl font-bold tracking-widest">{codespace.code}</div>
                 </div>
-                <div>
-                  <div className="text-sm text-muted-foreground">Expires At</div>
-                  <div className="font-medium">{new Date(codespace.expiresAt).toLocaleString()}</div>
-                </div>
+                {codespace.expiresAt ? (
+                  <div>
+                    <div className="text-sm text-muted-foreground">Expires At</div>
+                    <div className="font-medium">{new Date(codespace.expiresAt).toLocaleString()}</div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="text-sm text-muted-foreground">Duration</div>
+                    <div className="font-medium"><span className="px-2 py-0.5 rounded bg-green-100 text-green-700">Permanent</span></div>
+                  </div>
+                )}
                 <div className="ml-auto flex gap-2">
                   <Button
                     variant="secondary"
@@ -659,7 +1088,9 @@ To make it available to students:
               </TableRow>
             </TableHeader>
             <TableBody>
-              {allQuizzes.map((quiz) => (
+              {allQuizzes
+                .filter(q => !searchQuery || q.title.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map((quiz) => (
                 <TableRow key={quiz.id}>
                   <TableCell>
                     <div>
@@ -716,7 +1147,7 @@ To make it available to students:
                           <Play className="mr-2 h-4 w-4" />
                           Take Quiz (Student View)
                         </DropdownMenuItem>
-                        <DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => startEdit(quiz)}>
                           <Edit className="mr-2 h-4 w-4" />
                           Edit Quiz
                         </DropdownMenuItem>
@@ -724,16 +1155,24 @@ To make it available to students:
                           <Users className="mr-2 h-4 w-4" />
                           View Attempts
                         </DropdownMenuItem>
+                        <DropdownMenuItem className="text-red-600 hover:text-red-700" onClick={() => removeQuiz(quiz.id)}>
+                          🗑️ Delete Quiz
+                        </DropdownMenuItem>
                         <DropdownMenuItem>
                           <Download className="mr-2 h-4 w-4" />
                           Export Results
                         </DropdownMenuItem>
                         <DropdownMenuItem 
-                          onClick={() => {
-                            const newStatus = quiz.status === 'active' ? 'draft' : 'active';
-                            setAllQuizzes(prev => prev.map(q => 
-                              q.id === quiz.id ? { ...q, status: newStatus } : q
-                            ));
+                          onClick={async () => {
+                            try {
+                              const newStatus = quiz.status === 'active' ? 'draft' : 'active';
+                              await updateDoc(doc(db, 'quizzes', quiz.id), { isActive: newStatus === 'active' });
+                              setAllQuizzes(prev => prev.map(q => q.id === quiz.id ? { ...q, status: newStatus } : q));
+                              await reloadFsQuizzes();
+                              await loadAllQuizzes();
+                            } catch (e:any) {
+                              alert(`Failed to update quiz: ${e.message || e}`);
+                            }
                           }}
                           className={quiz.status === 'active' ? 'text-orange-600 hover:text-orange-700' : 'text-green-600 hover:text-green-700'}
                         >
@@ -1372,10 +1811,10 @@ To make it available to students:
           <p className="text-sm text-muted-foreground mt-1">Issue and track student certificates</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" className="rounded-lg">
+          <Button variant="outline" className="rounded-lg" onClick={exportCertificates}>
             <Download className="w-4 h-4 mr-2" /> Export Report
           </Button>
-          <Button className="rounded-lg">
+          <Button className="rounded-lg" onClick={() => issueCertificate()}>
             <Award className="w-4 h-4 mr-2" /> Issue Certificate
           </Button>
         </div>
@@ -1502,7 +1941,7 @@ To make it available to students:
                   </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline"><Eye className="w-4 h-4 mr-2" /> Preview</Button>
-                    <Button size="sm"><Award className="w-4 h-4 mr-2" /> Use</Button>
+                    <Button size="sm" onClick={() => issueCertificate(t.title)}><Award className="w-4 h-4 mr-2" /> Use</Button>
                   </div>
                 </div>
               ))}
@@ -1705,11 +2144,19 @@ To make it available to students:
             
             <div className="flex items-center gap-2">
               <Avatar>
-                <AvatarFallback>AU</AvatarFallback>
+                {currentUser?.photoURL && <AvatarImage src={currentUser.photoURL} alt={currentUser.displayName || currentUser.email || 'User'} />}
+                <AvatarFallback>
+                  {((currentUser?.displayName || currentUser?.email || '?')
+                    .split(' ')
+                    .map(s => s[0])
+                    .join('')
+                    .toUpperCase()
+                    .slice(0,2))}
+                </AvatarFallback>
               </Avatar>
               <div className="text-sm">
-                <p className="font-medium">Admin User</p>
-                <p className="text-muted-foreground">admin@eco.com</p>
+                <p className="font-medium">{currentUser?.displayName || 'Teacher'}</p>
+                <p className="text-muted-foreground">{currentUser?.email || '—'}</p>
               </div>
             </div>
           </div>

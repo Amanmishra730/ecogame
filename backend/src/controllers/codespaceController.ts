@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import Codespace from '../models/Codespace';
+import admin from 'firebase-admin';
 
 function generateCode(length = 6) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // avoid confusing chars
@@ -15,12 +15,35 @@ export const getCurrentCodespace = async (req: Request, res: Response) => {
     const adminUserId = (req as any).user?.uid;
     if (!adminUserId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const now = new Date();
-    const cs = await Codespace.findOne({ adminUserId, active: true, expiresAt: { $gt: now } })
-      .sort({ createdAt: -1 })
-      .lean();
-    if (!cs) return res.status(404).json({ error: 'No active codespace' });
-    res.json(cs);
+    const db = admin.firestore();
+    const snap = await db
+      .collection('codespaces')
+      .where('adminUserId', '==', adminUserId)
+      .where('active', '==', true)
+      .orderBy('createdAt', 'desc')
+      .limit(1)
+      .get();
+
+    if (snap.empty) return res.status(404).json({ error: 'No active codespace' });
+    const doc = snap.docs[0];
+    const data = doc.data();
+
+    const expiresAtVal = (data.expiresAt as admin.firestore.Timestamp)?.toDate?.() || (data.expiresAt ? new Date(data.expiresAt) : null);
+    if (expiresAtVal && expiresAtVal.getTime() <= Date.now()) {
+      return res.status(404).json({ error: 'No active codespace' });
+    }
+
+    res.json({
+      _id: doc.id,
+      code: data.code,
+      adminUserId: data.adminUserId,
+      quizId: data.quizId,
+      active: data.active,
+      name: data.name || null,
+      expiresAt: expiresAtVal ? expiresAtVal.toISOString() : null,
+      createdAt: ((data.createdAt as admin.firestore.Timestamp)?.toDate?.() || new Date()).toISOString(),
+      updatedAt: ((data.updatedAt as admin.firestore.Timestamp)?.toDate?.() || new Date()).toISOString(),
+    });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to fetch codespace' });
   }
@@ -31,23 +54,57 @@ export const createCodespace = async (req: Request, res: Response) => {
     const adminUserId = (req as any).user?.uid;
     if (!adminUserId) return res.status(401).json({ error: 'Unauthorized' });
 
-    const { quizId, ttlMinutes } = req.body || {};
-    const ttl = Math.min(Math.max(parseInt(ttlMinutes || '120', 10), 5), 24 * 60); // 5 mins to 24h
-    const expiresAt = new Date(Date.now() + ttl * 60 * 1000);
+    const { quizId, ttlMinutes, permanent, name } = req.body || {};
+    const isPermanent = Boolean(permanent);
+    const ttl = isPermanent ? null : Math.min(Math.max(parseInt(ttlMinutes || '120', 10), 5), 24 * 60); // 5 mins to 24h
+    const expiresAt = isPermanent ? null : new Date(Date.now() + (ttl as number) * 60 * 1000);
+
+    const db = admin.firestore();
 
     // Deactivate previous active ones for this admin
-    await Codespace.updateMany({ adminUserId, active: true }, { $set: { active: false } });
+    const activeSnap = await db
+      .collection('codespaces')
+      .where('adminUserId', '==', adminUserId)
+      .where('active', '==', true)
+      .get();
+    const batch = db.batch();
+    activeSnap.docs.forEach((d) => batch.update(d.ref, { active: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() }));
+    if (!activeSnap.empty) await batch.commit();
 
     // Generate a unique code
     let code = generateCode();
     for (let i = 0; i < 5; i++) {
-      const exists = await Codespace.findOne({ code }).lean();
-      if (!exists) break;
+      const exists = await db.collection('codespaces').where('code', '==', code).limit(1).get();
+      if (exists.empty) break;
       code = generateCode();
     }
 
-    const created = await Codespace.create({ code, adminUserId, quizId, active: true, expiresAt });
-    res.status(201).json(created);
+    const nowTs = admin.firestore.FieldValue.serverTimestamp();
+    const expiresTs = expiresAt ? admin.firestore.Timestamp.fromDate(expiresAt) : null;
+    const docRef = await db.collection('codespaces').add({
+      code,
+      adminUserId,
+      quizId: quizId || null,
+      active: true,
+      name: name || null,
+      expiresAt: expiresTs,
+      createdAt: nowTs,
+      updatedAt: nowTs,
+    });
+
+    const createdDoc = await docRef.get();
+    const created = createdDoc.data()!;
+    res.status(201).json({
+      _id: docRef.id,
+      code: created.code,
+      adminUserId: created.adminUserId,
+      quizId: created.quizId || undefined,
+      active: created.active,
+      name: created.name || null,
+      expiresAt: created.expiresAt ? ((created.expiresAt as admin.firestore.Timestamp).toDate()).toISOString() : null,
+      createdAt: ((created.createdAt as admin.firestore.Timestamp)?.toDate?.() || new Date()).toISOString(),
+      updatedAt: ((created.updatedAt as admin.firestore.Timestamp)?.toDate?.() || new Date()).toISOString(),
+    });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to create codespace' });
   }
@@ -58,7 +115,16 @@ export const deactivateCodespace = async (req: Request, res: Response) => {
     const adminUserId = (req as any).user?.uid;
     if (!adminUserId) return res.status(401).json({ error: 'Unauthorized' });
 
-    await Codespace.updateMany({ adminUserId, active: true }, { $set: { active: false } });
+    const db = admin.firestore();
+    const snap = await db
+      .collection('codespaces')
+      .where('adminUserId', '==', adminUserId)
+      .where('active', '==', true)
+      .get();
+    const batch = db.batch();
+    snap.docs.forEach((d) => batch.update(d.ref, { active: false, updatedAt: admin.firestore.FieldValue.serverTimestamp() }));
+    if (!snap.empty) await batch.commit();
+
     res.json({ success: true });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to deactivate codespace' });
@@ -70,15 +136,36 @@ export const joinByCode = async (req: Request, res: Response) => {
     const { code } = req.body || {};
     if (!code) return res.status(400).json({ error: 'Code is required' });
 
-    const cs = await Codespace.findOne({ code: String(code).toUpperCase(), active: true }).lean();
-    if (!cs) return res.status(404).json({ error: 'Invalid code' });
+    const db = admin.firestore();
+    const snap = await db
+      .collection('codespaces')
+      .where('code', '==', String(code).toUpperCase())
+      .where('active', '==', true)
+      .limit(1)
+      .get();
 
-    if (new Date(cs.expiresAt).getTime() <= Date.now()) {
+    if (snap.empty) return res.status(404).json({ error: 'Invalid code' });
+    const doc = snap.docs[0];
+    const data = doc.data();
+    const expiresAtVal = (data.expiresAt as admin.firestore.Timestamp)?.toDate?.() || (data.expiresAt ? new Date(data.expiresAt) : null);
+    if (expiresAtVal && expiresAtVal.getTime() <= Date.now()) {
       return res.status(410).json({ error: 'Code expired' });
     }
 
     // Optionally: include quiz metadata later
-    res.json({ codespace: cs });
+    res.json({
+      codespace: {
+        _id: doc.id,
+        code: data.code,
+        adminUserId: data.adminUserId,
+        quizId: data.quizId || undefined,
+        active: data.active,
+        name: data.name || null,
+        expiresAt: expiresAtVal ? expiresAtVal.toISOString() : null,
+        createdAt: ((data.createdAt as admin.firestore.Timestamp)?.toDate?.() || new Date()).toISOString(),
+        updatedAt: ((data.updatedAt as admin.firestore.Timestamp)?.toDate?.() || new Date()).toISOString(),
+      }
+    });
   } catch (e: any) {
     res.status(500).json({ error: e.message || 'Failed to join by code' });
   }

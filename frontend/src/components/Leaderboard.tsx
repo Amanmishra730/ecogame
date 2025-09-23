@@ -23,13 +23,22 @@ export const Leaderboard = () => {
         setLoading(true);
         setError(null);
         
-        // Load leaderboard data
-        const leaderboardData = await LeaderboardService.getLeaderboard(50);
-        setLeaderboard(leaderboardData);
-        
-        // Load user stats
-        const userStats = await LeaderboardService.getLeaderboardStats(currentUser.uid);
-        setStats(userStats);
+        // Load leaderboard data (treat errors here as fatal for the page)
+        try {
+          const leaderboardData = await LeaderboardService.getLeaderboard(50);
+          setLeaderboard(leaderboardData);
+        } catch (e) {
+          // If we cannot read the leaderboard at all, show error
+          throw e;
+        }
+
+        // Load user stats (non-fatal: if blocked by rules, just omit stats)
+        try {
+          const userStats = await LeaderboardService.getLeaderboardStats(currentUser.uid);
+          setStats(userStats);
+        } catch (statsErr) {
+          console.warn('Unable to load leaderboard stats (continuing without stats):', statsErr);
+        }
       } catch (err) {
         console.error('Error loading leaderboard:', err);
         setError(err instanceof Error ? err.message : 'Failed to load leaderboard');
@@ -41,9 +50,14 @@ export const Leaderboard = () => {
     loadLeaderboard();
 
     // Subscribe to real-time updates
-    const unsubscribe = LeaderboardService.subscribeToLeaderboard((updatedLeaderboard) => {
-      setLeaderboard(updatedLeaderboard);
-    }, 50);
+    let unsubscribe = () => {};
+    try {
+      unsubscribe = LeaderboardService.subscribeToLeaderboard((updatedLeaderboard) => {
+        setLeaderboard(updatedLeaderboard);
+      }, 50);
+    } catch (subErr) {
+      console.warn('Realtime leaderboard subscription unavailable (continuing without realtime):', subErr);
+    }
 
     return () => unsubscribe();
   }, [currentUser]);

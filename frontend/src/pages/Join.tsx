@@ -2,8 +2,11 @@ import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 
 const Join: React.FC = () => {
+  const navigate = useNavigate();
   const [code, setCode] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
@@ -29,6 +32,8 @@ const Join: React.FC = () => {
       setMessage('Success! You have joined the codespace.');
       // Optionally store for later use
       try { localStorage.setItem('codespace.join', JSON.stringify(body)); } catch {}
+      // Navigate to the classroom view for a dedicated experience
+      navigate(`/classroom/${String(code).toUpperCase()}`);
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -58,6 +63,11 @@ const Join: React.FC = () => {
             <Button className="w-full" onClick={join} disabled={loading || code.trim().length < 4}>
               {loading ? 'Joining...' : 'Join'}
             </Button>
+            <Link to="/admin" className="block">
+              <Button variant="outline" className="w-full" type="button">
+                <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
+              </Button>
+            </Link>
             {message && (
               <div className="text-green-700 bg-green-50 border border-green-200 rounded p-3 text-sm">{message}</div>
             )}
@@ -69,6 +79,11 @@ const Join: React.FC = () => {
                 <div>Code: <span className="font-mono">{result?.codespace?.code}</span></div>
                 <div>Instructor: <span className="font-mono">{result?.codespace?.adminUserId}</span></div>
                 <div>Expires: {result?.codespace?.expiresAt ? new Date(result.codespace.expiresAt).toLocaleString() : 'N/A'}</div>
+                <div className="mt-2">
+                  <Link to={`/classroom/${(result?.codespace?.code || '').toUpperCase()}`} className="inline-block">
+                    <Button>Enter Classroom</Button>
+                  </Link>
+                </div>
               </div>
             )}
           </div>
